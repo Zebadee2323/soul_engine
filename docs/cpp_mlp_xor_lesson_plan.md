@@ -107,8 +107,8 @@ This is not the fastest layout, but it is easy to debug. Later you can replace i
 - [X] Make the project compile and print `Hello MLP`.
 - [X] Decide whether to use plain `std::vector<float>` or GLM for early math. 
         (Decision: we'll just use plain std::vector<float> for now)
-- [ ] Create a simple `Vector` alias.
-- [ ] Create a simple `Matrix` alias.
+- [X] Create a simple `Vector` alias.
+- [X] Create a simple `Matrix` alias.
 
 ---
 
@@ -184,15 +184,15 @@ assert(a.size() == b.size());
 
 ## Tasks
 
-- [ ] Define `using Vector = std::vector<float>;`.
-- [ ] Define `using Matrix = std::vector<std::vector<float>>;`.
-- [ ] Implement `make_vector(size, value)`.
-- [ ] Implement `make_matrix(rows, cols, value)`.
-- [ ] Implement `mat_vec_mul(matrix, vector)`.
-- [ ] Implement vector addition.
-- [ ] Add assert-based shape checks.
-- [ ] Write a small test in `main.cpp` that multiplies a `2x2` matrix by a 2D vector.
-- [ ] Print the result and verify it manually.
+- [X] Define `using Vector = std::vector<float>;`.
+- [X] Define `using Matrix = std::vector<std::vector<float>>;`.
+- [X] Implement `make_vector(size, value)`.
+- [X] Implement `make_matrix(rows, cols, value)`.
+- [X] Implement `mat_vec_mul(matrix, vector)`.
+- [X] Implement vector addition.
+- [X] Add assert-based shape checks.
+- [X] Write a small test in `main.cpp` that multiplies a `2x2` matrix by a 2D vector.
+- [X] Print the result and verify it manually.
 
 ---
 
