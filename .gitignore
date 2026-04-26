@@ -1,0 +1,58 @@
+# Build directories
+build/
+out/
+dist/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake-build-*/
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# Binaries and objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Debug symbols and profiling
+*.dSYM/
+*.pdb
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+
+# Editors and OS files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment and local overrides
+.env
+.env.*
+!.env.example
+.direnv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Codex
+.codex
