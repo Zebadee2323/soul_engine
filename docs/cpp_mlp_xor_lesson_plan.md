@@ -67,14 +67,14 @@ mlp-xor/
   CMakeLists.txt
   src/
     main.cpp
-    Math.hpp
-    DenseLayer.hpp
-    DenseLayer.cpp
-    MLP.hpp
-    MLP.cpp
-    Activations.hpp
-    Loss.hpp
-    Dataset.hpp
+    math.hpp
+    dense_layer.hpp
+    dense_layer.cpp
+    mlp.hpp
+    mlp.cpp
+    activations.hpp
+    loss.hpp
+    dataset.hpp
 ```
 
 At first, many of these files can be empty placeholders.
@@ -100,12 +100,13 @@ This is not the fastest layout, but it is easy to debug. Later you can replace i
 
 ## Tasks
 
-- [ ] Create a new C++ project folder.
-- [ ] Add a `CMakeLists.txt` or equivalent build setup.
-- [ ] Create `main.cpp`.
-- [ ] Add placeholder headers for the neural-network components.
-- [ ] Make the project compile and print `Hello MLP`.
-- [ ] Decide whether to use plain `std::vector<float>` or GLM for early math.
+- [X] Create a new C++ project folder.
+- [X] Add a `CMakeLists.txt` or equivalent build setup.
+- [X] Create `main.cpp`.
+- [X] Add placeholder headers for the neural-network components.
+- [X] Make the project compile and print `Hello MLP`.
+- [X] Decide whether to use plain `std::vector<float>` or GLM for early math. 
+        (Decision: we'll just use plain std::vector<float> for now)
 - [ ] Create a simple `Vector` alias.
 - [ ] Create a simple `Matrix` alias.
 
@@ -167,10 +168,10 @@ Create basic utility functions:
 using Vector = std::vector<float>;
 using Matrix = std::vector<std::vector<float>>;
 
-Vector makeVector(size_t size, float value = 0.0f);
-Matrix makeMatrix(size_t rows, size_t cols, float value = 0.0f);
+Vector make_vector(size_t size, float value = 0.0f);
+Matrix make_matrix(size_t rows, size_t cols, float value = 0.0f);
 
-Vector matVecMul(const Matrix& m, const Vector& v);
+Vector mat_vec_mul(const Matrix& m, const Vector& v);
 Vector add(const Vector& a, const Vector& b);
 ```
 
@@ -185,9 +186,9 @@ assert(a.size() == b.size());
 
 - [ ] Define `using Vector = std::vector<float>;`.
 - [ ] Define `using Matrix = std::vector<std::vector<float>>;`.
-- [ ] Implement `makeVector(size, value)`.
-- [ ] Implement `makeMatrix(rows, cols, value)`.
-- [ ] Implement `matVecMul(matrix, vector)`.
+- [ ] Implement `make_vector(size, value)`.
+- [ ] Implement `make_matrix(rows, cols, value)`.
+- [ ] Implement `mat_vec_mul(matrix, vector)`.
 - [ ] Implement vector addition.
 - [ ] Add assert-based shape checks.
 - [ ] Write a small test in `main.cpp` that multiplies a `2x2` matrix by a 2D vector.
@@ -239,13 +240,13 @@ Create a `DenseLayer` class:
 class DenseLayer
 {
 public:
-    DenseLayer(size_t inputSize, size_t outputSize);
+    DenseLayer(size_t input_size, size_t output_size);
 
     Vector forward(const Vector& input);
 
 private:
-    size_t m_inputSize;
-    size_t m_outputSize;
+    size_t m_input_size;
+    size_t m_output_size;
     Matrix m_weights;
     Vector m_biases;
 };
@@ -255,9 +256,9 @@ For now, initialize weights and biases manually or to small hardcoded values.
 
 ## Tasks
 
-- [ ] Create `DenseLayer.hpp`.
-- [ ] Create `DenseLayer.cpp`.
-- [ ] Add `inputSize` and `outputSize` members.
+- [ ] Create `dense_layer.hpp`.
+- [ ] Create `dense_layer.cpp`.
+- [ ] Add `input_size` and `output_size` members.
 - [ ] Add `weights` and `biases` members.
 - [ ] Implement a constructor that creates the correct weight and bias shapes.
 - [ ] Implement `DenseLayer::forward()`.
@@ -290,14 +291,14 @@ Later, you can improve this with Xavier or He initialization.
 A decent simple initialization for sigmoid/tanh is Xavier-style:
 
 ```text
-limit = sqrt(6 / (inputSize + outputSize))
+limit = sqrt(6 / (input_size + output_size))
 weight = random(-limit, limit)
 ```
 
 For ReLU, He initialization is common:
 
 ```text
-stddev = sqrt(2 / inputSize)
+stddev = sqrt(2 / input_size)
 ```
 
 For XOR, simple random values are enough.
@@ -316,7 +317,7 @@ std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
 Add a helper:
 
 ```cpp
-float randomFloat(float min, float max);
+float random_float(float min, float max);
 ```
 
 Then initialize weights in the `DenseLayer` constructor.
@@ -390,7 +391,7 @@ Implement:
 
 ```cpp
 float activate(float x, ActivationType type);
-float activationDerivativeFromOutput(float activatedValue, ActivationType type);
+float activation_derivative_from_output(float activated_value, ActivationType type);
 ```
 
 For sigmoid, if `y = sigmoid(x)`, then:
@@ -413,12 +414,12 @@ To keep the first implementation simple, start with sigmoid only.
 
 ## Tasks
 
-- [ ] Create `Activations.hpp`.
+- [ ] Create `activations.hpp`.
 - [ ] Add `ActivationType` enum.
 - [ ] Implement `sigmoid(x)`.
-- [ ] Implement `sigmoidDerivativeFromOutput(y)`.
+- [ ] Implement `sigmoid_derivative_from_output(y)`.
 - [ ] Optionally implement `relu(x)`.
-- [ ] Optionally implement `reluDerivativeFromPreActivation(x)`.
+- [ ] Optionally implement `relu_derivative_from_pre_activation(x)`.
 - [ ] Add an `ActivationType` member to `DenseLayer`.
 - [ ] Update `DenseLayer::forward()` to apply activation after `W x + b`.
 - [ ] Test sigmoid with known values.
@@ -439,7 +440,7 @@ h = layer1.forward(input);
 y = layer2.forward(h);
 ```
 
-Create an `MLP` class that owns layers and forwards through them.
+Create a `Mlp` class that owns layers and forwards through them.
 
 This is similar to a small game pipeline:
 
@@ -460,8 +461,8 @@ Create a layer config:
 ```cpp
 struct LayerConfig
 {
-    size_t inputSize;
-    size_t outputSize;
+    size_t input_size;
+    size_t output_size;
     ActivationType activation;
 };
 ```
@@ -469,10 +470,10 @@ struct LayerConfig
 Create an MLP:
 
 ```cpp
-class MLP
+class Mlp
 {
 public:
-    MLP(const std::vector<LayerConfig>& configs);
+    Mlp(const std::vector<LayerConfig>& configs);
 
     Vector forward(const Vector& input);
 
@@ -484,7 +485,7 @@ private:
 Example construction:
 
 ```cpp
-MLP mlp({
+Mlp mlp({
     {2, 4, ActivationType::Sigmoid},
     {4, 1, ActivationType::Sigmoid}
 });
@@ -492,12 +493,12 @@ MLP mlp({
 
 ## Tasks
 
-- [ ] Create `MLP.hpp`.
-- [ ] Create `MLP.cpp`.
+- [ ] Create `mlp.hpp`.
+- [ ] Create `mlp.cpp`.
 - [ ] Create `LayerConfig`.
-- [ ] Add `std::vector<DenseLayer>` to `MLP`.
-- [ ] Implement the `MLP` constructor from layer configs.
-- [ ] Implement `MLP::forward()`.
+- [ ] Add `std::vector<DenseLayer>` to `Mlp`.
+- [ ] Implement the `Mlp` constructor from layer configs.
+- [ ] Implement `Mlp::forward()`.
 - [ ] Create a `2 -> 4 -> 1` MLP in `main.cpp`.
 - [ ] Feed it all four XOR inputs.
 - [ ] Print the raw predictions.
@@ -568,14 +569,14 @@ using Dataset = std::vector<Sample>;
 Create loss helpers:
 
 ```cpp
-float meanSquaredError(const Vector& prediction, const Vector& target);
-Vector meanSquaredErrorDerivative(const Vector& prediction, const Vector& target);
+float mean_squared_error(const Vector& prediction, const Vector& target);
+Vector mean_squared_error_derivative(const Vector& prediction, const Vector& target);
 ```
 
 Create the XOR dataset:
 
 ```cpp
-Dataset xorData = {
+Dataset xor_data = {
     {{0.0f, 0.0f}, {0.0f}},
     {{0.0f, 1.0f}, {1.0f}},
     {{1.0f, 0.0f}, {1.0f}},
@@ -585,14 +586,14 @@ Dataset xorData = {
 
 ## Tasks
 
-- [ ] Create `Dataset.hpp`.
+- [ ] Create `dataset.hpp`.
 - [ ] Define `Sample`.
 - [ ] Define `Dataset`.
 - [ ] Create the XOR dataset.
-- [ ] Create `Loss.hpp`.
-- [ ] Implement `meanSquaredError()`.
-- [ ] Implement `meanSquaredErrorDerivative()`.
-- [ ] Run the MLP over the XOR dataset.
+- [ ] Create `loss.hpp`.
+- [ ] Implement `mean_squared_error()`.
+- [ ] Implement `mean_squared_error_derivative()`.
+- [ ] Run the Mlp over the XOR dataset.
 - [ ] Print prediction, target, and loss for each sample.
 - [ ] Print average loss across the dataset.
 
@@ -638,7 +639,7 @@ how much the loss changes with respect to this layer's output activation
 Then it computes:
 
 ```text
-dL/dz = dL/da * activationDerivative(z)
+dL/dz = dL/da * activation_derivative(z)
 ```
 
 For each weight:
@@ -668,46 +669,46 @@ In game-dev terms, forward propagation is evaluating a graph from input to outpu
 The layer must cache values from the forward pass:
 
 ```cpp
-Vector m_lastInput;
-Vector m_lastZ;
-Vector m_lastActivation;
+Vector m_last_input;
+Vector m_last_z;
+Vector m_last_activation;
 ```
 
 Add gradient storage:
 
 ```cpp
-Matrix m_weightGradients;
-Vector m_biasGradients;
+Matrix m_weight_gradients;
+Vector m_bias_gradients;
 ```
 
 Add:
 
 ```cpp
-Vector DenseLayer::backward(const Vector& outputGradient);
+Vector DenseLayer::backward(const Vector& output_gradient);
 ```
 
-Where `outputGradient` means `dL/da` for this layer.
+Where `output_gradient` means `dL/da` for this layer.
 
 Inside `backward()`:
 
-1. Compute `dZ`
-2. Compute `weightGradients`
-3. Compute `biasGradients`
-4. Compute `inputGradient`
-5. Return `inputGradient`
+1. Compute `d_z`
+2. Compute `weight_gradients`
+3. Compute `bias_gradients`
+4. Compute `input_gradient`
+5. Return `input_gradient`
 
 ## Tasks
 
-- [ ] Store `lastInput` during `forward()`.
-- [ ] Store `lastZ` during `forward()`.
-- [ ] Store `lastActivation` during `forward()`.
-- [ ] Add `weightGradients` to `DenseLayer`.
-- [ ] Add `biasGradients` to `DenseLayer`.
-- [ ] Implement `DenseLayer::backward(outputGradient)`.
-- [ ] Compute `dZ` using activation derivative.
+- [ ] Store `last_input` during `forward()`.
+- [ ] Store `last_z` during `forward()`.
+- [ ] Store `last_activation` during `forward()`.
+- [ ] Add `weight_gradients` to `DenseLayer`.
+- [ ] Add `bias_gradients` to `DenseLayer`.
+- [ ] Implement `DenseLayer::backward(output_gradient)`.
+- [ ] Compute `d_z` using activation derivative.
 - [ ] Compute gradients for all weights.
 - [ ] Compute gradients for all biases.
-- [ ] Compute and return `inputGradient`.
+- [ ] Compute and return `input_gradient`.
 - [ ] Test backward pass on a single-layer network.
 - [ ] Print gradient values to confirm they are not all zero.
 
@@ -720,19 +721,19 @@ Inside `backward()`:
 Once you have gradients, training is simple:
 
 ```text
-parameter = parameter - learningRate * gradient
+parameter = parameter - learning_rate * gradient
 ```
 
 For weights:
 
 ```text
-W[i][j] = W[i][j] - learningRate * dW[i][j]
+W[i][j] = W[i][j] - learning_rate * dW[i][j]
 ```
 
 For biases:
 
 ```text
-b[i] = b[i] - learningRate * db[i]
+b[i] = b[i] - learning_rate * db[i]
 ```
 
 The learning rate controls step size.
@@ -764,7 +765,7 @@ If training fails, reduce the learning rate.
 Add to `DenseLayer`:
 
 ```cpp
-void applyGradients(float learningRate);
+void apply_gradients(float learning_rate);
 ```
 
 Then update every weight and bias.
@@ -775,11 +776,11 @@ This is stochastic gradient descent.
 
 ## Tasks
 
-- [ ] Add `DenseLayer::applyGradients(float learningRate)`.
+- [ ] Add `DenseLayer::apply_gradients(float learning_rate)`.
 - [ ] Update every weight using its gradient.
 - [ ] Update every bias using its gradient.
-- [ ] Add `MLP::backward(lossGradient)` that loops through layers in reverse.
-- [ ] Add `MLP::applyGradients(learningRate)`.
+- [ ] Add `Mlp::backward(loss_gradient)` that loops through layers in reverse.
+- [ ] Add `Mlp::apply_gradients(learning_rate)`.
 - [ ] Run one training step on a single XOR sample.
 - [ ] Print loss before and after one update.
 - [ ] Confirm the loss changes.
@@ -796,16 +797,16 @@ The high-level loop is:
 
 ```text
 for epoch in epochs:
-    totalLoss = 0
+    total_loss = 0
 
     for sample in dataset:
         prediction = mlp.forward(sample.input)
-        loss = computeLoss(prediction, sample.target)
-        gradient = computeLossDerivative(prediction, sample.target)
+        loss = compute_loss(prediction, sample.target)
+        gradient = compute_loss_derivative(prediction, sample.target)
         mlp.backward(gradient)
-        mlp.applyGradients(learningRate)
+        mlp.apply_gradients(learning_rate)
 
-        totalLoss += loss
+        total_loss += loss
 
     print average loss sometimes
 ```
@@ -829,10 +830,10 @@ Create a training function:
 
 ```cpp
 void train(
-    MLP& mlp,
+    Mlp& mlp,
     const Dataset& dataset,
     size_t epochs,
-    float learningRate);
+    float learning_rate);
 ```
 
 Inside it:
@@ -891,24 +892,24 @@ For sigmoid, a common issue is saturation. If inputs to sigmoid become very larg
 Add debug helpers:
 
 ```cpp
-void printVector(const Vector& v);
-void printMatrix(const Matrix& m);
-float vectorMin(const Vector& v);
-float vectorMax(const Vector& v);
-bool containsNaN(const Vector& v);
+void print_vector(const Vector& v);
+void print_matrix(const Matrix& m);
+float vector_min(const Vector& v);
+float vector_max(const Vector& v);
+bool contains_nan(const Vector& v);
 ```
 
 Optional:
 
 ```cpp
-void MLP::printWeights() const;
-void MLP::printGradientStats() const;
+void Mlp::print_weights() const;
+void Mlp::print_gradient_stats() const;
 ```
 
 ## Tasks
 
-- [ ] Add `printVector()`.
-- [ ] Add `printMatrix()`.
+- [ ] Add `print_vector()`.
+- [ ] Add `print_matrix()`.
 - [ ] Add NaN checks for predictions.
 - [ ] Add NaN checks for loss.
 - [ ] Print average loss every N epochs.
@@ -931,14 +932,14 @@ The goal is to move from a demo into a reusable component.
 A useful API might look like:
 
 ```cpp
-MLP mlp({
+Mlp mlp({
     {2, 4, ActivationType::Sigmoid},
     {4, 1, ActivationType::Sigmoid}
 });
 
 mlp.train(dataset, TrainConfig{
     .epochs = 10000,
-    .learningRate = 0.5f
+    .learning_rate = 0.5f
 });
 
 Vector output = mlp.predict({0.0f, 1.0f});
@@ -954,23 +955,23 @@ Create:
 struct TrainConfig
 {
     size_t epochs = 10000;
-    float learningRate = 0.5f;
-    size_t logEvery = 1000;
+    float learning_rate = 0.5f;
+    size_t log_every = 1000;
 };
 ```
 
 Add:
 
 ```cpp
-Vector MLP::predict(const Vector& input);
-void MLP::train(const Dataset& dataset, const TrainConfig& config);
+Vector Mlp::predict(const Vector& input);
+void Mlp::train(const Dataset& dataset, const TrainConfig& config);
 ```
 
 ## Tasks
 
 - [ ] Add `TrainConfig`.
-- [ ] Move training logic into `MLP::train()` or a dedicated trainer.
-- [ ] Add `MLP::predict()`.
+- [ ] Move training logic into `Mlp::train()` or a dedicated trainer.
+- [ ] Add `Mlp::predict()`.
 - [ ] Make layer configuration clean and readable.
 - [ ] Remove temporary debug prints or guard them behind a flag.
 - [ ] Add comments explaining shape conventions.
@@ -1011,8 +1012,8 @@ Later, you can use binary serialization.
 Add:
 
 ```cpp
-void MLP::save(const std::string& path) const;
-static MLP MLP::load(const std::string& path);
+void Mlp::save(const std::string& path) const;
+static Mlp Mlp::load(const std::string& path);
 ```
 
 Simple text format example:
@@ -1033,8 +1034,8 @@ biases
 
 ## Tasks
 
-- [ ] Add save function to `DenseLayer` or `MLP`.
-- [ ] Add load function to `DenseLayer` or `MLP`.
+- [ ] Add save function to `DenseLayer` or `Mlp`.
+- [ ] Add load function to `DenseLayer` or `Mlp`.
 - [ ] Save architecture information.
 - [ ] Save activation type.
 - [ ] Save weights.
@@ -1066,7 +1067,7 @@ std::vector<float> weights;
 With indexing:
 
 ```cpp
-weights[row * inputSize + col]
+weights[row * input_size + col]
 ```
 
 This improves locality and avoids many small allocations.
@@ -1079,29 +1080,29 @@ Change:
 
 ```cpp
 Matrix m_weights;
-Matrix m_weightGradients;
+Matrix m_weight_gradients;
 ```
 
 Into:
 
 ```cpp
 std::vector<float> m_weights;
-std::vector<float> m_weightGradients;
+std::vector<float> m_weight_gradients;
 ```
 
 Add helper:
 
 ```cpp
-size_t weightIndex(size_t outputNeuron, size_t inputNeuron) const
+size_t weight_index(size_t output_neuron, size_t input_neuron) const
 {
-    return outputNeuron * m_inputSize + inputNeuron;
+    return output_neuron * m_input_size + input_neuron;
 }
 ```
 
 ## Tasks
 
 - [ ] Replace nested matrix storage with flat vector storage.
-- [ ] Add `weightIndex(row, col)` helper.
+- [ ] Add `weight_index(row, col)` helper.
 - [ ] Update forward pass.
 - [ ] Update backward pass.
 - [ ] Update gradient application.
@@ -1140,20 +1141,20 @@ You need separate storage for accumulated gradients or a way to add into existin
 Add:
 
 ```cpp
-void DenseLayer::zeroGradients();
-void DenseLayer::accumulateGradients(...);
-void DenseLayer::applyGradients(float learningRate, float scale);
+void DenseLayer::zero_gradients();
+void DenseLayer::accumulate_gradients(...);
+void DenseLayer::apply_gradients(float learning_rate, float scale);
 ```
 
 Where `scale` might be:
 
 ```text
-1.0 / batchSize
+1.0 / batch_size
 ```
 
 ## Tasks
 
-- [ ] Add `zeroGradients()`.
+- [ ] Add `zero_gradients()`.
 - [ ] Change backward pass to accumulate instead of overwrite, or add a mode for accumulation.
 - [ ] Add batch size to `TrainConfig`.
 - [ ] Average gradients over the batch.
@@ -1321,7 +1322,7 @@ prediction > 0.95 means 1
 Start with:
 
 ```cpp
-MLP mlp({
+Mlp mlp({
     {2, 4, ActivationType::Sigmoid},
     {4, 1, ActivationType::Sigmoid}
 });
@@ -1332,8 +1333,8 @@ Training config:
 ```cpp
 TrainConfig config;
 config.epochs = 10000;
-config.learningRate = 0.5f;
-config.logEvery = 1000;
+config.learning_rate = 0.5f;
+config.log_every = 1000;
 ```
 
 Expected final behavior:
@@ -1381,7 +1382,7 @@ When you move from XOR to audio emotion classification, the MLP structure might 
 Example:
 
 ```cpp
-MLP emotionModel({
+Mlp emotion_model({
     {4, 16, ActivationType::ReLU},
     {16, 16, ActivationType::ReLU},
     {16, 4, ActivationType::Softmax}
