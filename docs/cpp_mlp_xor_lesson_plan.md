@@ -4,7 +4,7 @@
 
 Build a small configurable multi-layer perceptron in C++ that can learn the XOR function without using any machine learning libraries.
 
-Math libraries such as GLM are allowed, but the neural-network logic should be written manually.
+Use Eigen for vectors and matrices, but write the neural-network logic manually.
 
 By the end, you should have:
 
@@ -49,6 +49,8 @@ Example:
 
 Before touching neural-network math, set up a small C++ project that is easy to iterate on. Treat this like building a tiny engine subsystem: first make the core loop simple, testable, and visible.
 
+The main reason to do this first is feedback speed. Neural-network code is full of small mistakes: wrong dimensions, wrong indexing, wrong update order, wrong derivatives. If your build is awkward or your executable is doing too many things at once, each debugging cycle becomes painful. A tiny, focused program lets you change one thing, rebuild, run, and immediately inspect the result.
+
 For this project, the main executable should:
 
 1. Create an XOR dataset
@@ -56,7 +58,9 @@ For this project, the main executable should:
 3. Train it for many iterations
 4. Print predictions before and after training
 
-You do not need a complex build system, but using CMake is a good idea.
+That gives you one clear vertical slice from data to learning result. Even before the implementation is complete, it helps to know what the finished loop is supposed to look like.
+
+You do not need a complex build system, but using CMake is a good idea. It keeps the project close to normal C++ workflows, makes it easy to split code into headers and source files, and makes future refactors less disruptive.
 
 ## C++ Code Required
 
@@ -79,24 +83,14 @@ mlp-xor/
 
 At first, many of these files can be empty placeholders.
 
-If using GLM, you can represent vectors and matrices with:
+For this project, use Eigen for dynamic vectors and matrices:
 
 ```cpp
-std::vector<float>
-glm::vec<N>
-glm::mat<C, R, float>
+Eigen::VectorXf
+Eigen::MatrixXf
 ```
 
-However, because we want configurable layer sizes, dynamic containers are simpler than fixed-size GLM types.
-
-Recommended for the first version:
-
-```cpp
-using Vector = std::vector<float>;
-using Matrix = std::vector<std::vector<float>>;
-```
-
-This is not the fastest layout, but it is easy to debug. Later you can replace it with a flat array.
+Use Eigen types directly in the early examples to keep the math code concise while still allowing configurable layer sizes.
 
 ## Tasks
 
@@ -105,11 +99,8 @@ This is not the fastest layout, but it is easy to debug. Later you can replace i
 - [X] Create `main.cpp`.
 - [X] Add placeholder headers for the neural-network components.
 - [X] Make the project compile and print `Hello MLP`.
-- [X] Decide whether to use plain `std::vector<float>` or GLM for early math. 
-        (Decision: we'll just use plain std::vector<float> for now)
-- [X] Create a simple `Vector` alias.
-- [X] Create a simple `Matrix` alias.
-
+- [X] Decide on a math library. 
+        (Decision: use Eigen for dynamic vectors and matrices)
 ---
 
 # Phase 1: Representing Vectors, Matrices, and Layer Shapes
@@ -149,6 +140,8 @@ b shape = 4
 y shape = 4
 ```
 
+The important idea is that every output neuron looks at the full input vector, forms a weighted sum, then adds its own bias. So a dense layer is really just a bundle of small dot products that all share the same input.
+
 In game-dev terms, this is like transforming a vector through a matrix, except the matrix is not necessarily 4x4 and the meaning is not spatial. Instead of transforming position, rotation, or scale, you are transforming feature values into neuron activations.
 
 Each output neuron owns one row of the matrix:
@@ -160,36 +153,36 @@ y[2] = W[2][0] * x[0] + W[2][1] * x[1] + b[2]
 y[3] = W[3][0] * x[0] + W[3][1] * x[1] + b[3]
 ```
 
+Getting comfortable with shapes now pays off later, because most neural-network bugs are really shape bugs in disguise. If you always know whether a value is an input vector, output vector, weight row, or full matrix, the later backpropagation math is much easier to reason about.
+
 ## C++ Code Required
 
-Create basic utility functions:
+Set up basic Eigen aliases and use Eigen operators directly:
 
 ```cpp
-using Vector = std::vector<float>;
-using Matrix = std::vector<std::vector<float>>;
+using Vector = Eigen::VectorXf;
+using Matrix = Eigen::MatrixXf;
 
-Vector make_vector(size_t size, float value = 0.0f);
-Matrix make_matrix(size_t rows, size_t cols, float value = 0.0f);
-
-Vector mat_vec_mul(const Matrix& m, const Vector& v);
-Vector add(const Vector& a, const Vector& b);
+Matrix weights(output_size, input_size);
+Vector biases(output_size);
+Vector output = weights * input + biases;
 ```
 
 You also want simple shape checking during development:
 
 ```cpp
-assert(m[0].size() == v.size());
-assert(a.size() == b.size());
+assert(weights.cols() == input.size());
+assert(biases.size() == output.size());
 ```
 
 ## Tasks
 
-- [X] Define `using Vector = std::vector<float>;`.
-- [X] Define `using Matrix = std::vector<std::vector<float>>;`.
-- [X] Implement `make_vector(size, value)`.
-- [X] Implement `make_matrix(rows, cols, value)`.
-- [X] Implement `mat_vec_mul(matrix, vector)`.
-- [X] Implement vector addition.
+- [X] Define `using Vector = Eigen::VectorXf;`.
+- [X] Define `using Matrix = Eigen::MatrixXf;`.
+- [X] Create a matrix with the right `(rows, cols)` shape.
+- [X] Create vectors with the right size.
+- [X] Implement matrix-vector multiplication with Eigen.
+- [X] Implement vector addition with Eigen.
 - [X] Add assert-based shape checks.
 - [X] Write a small test in `main.cpp` that multiplies a `2x2` matrix by a 2D vector.
 - [X] Print the result and verify it manually.
@@ -228,7 +221,9 @@ The value `z` is often called the pre-activation value. Later we will apply an a
 a = activation(z)
 ```
 
-For now, implement only the linear part.
+For now, implement only the linear part. That lets you isolate whether the layer shape logic, matrix math, and data ownership are correct before adding nonlinear behavior.
+
+A useful mental model is that a dense layer is a parameterized function object. It owns trainable state and can be evaluated repeatedly on different inputs. That separation matters because later the same class will also need to remember enough information from the forward pass to compute gradients during the backward pass.
 
 Think of this as the neural-network version of a transform component. The layer owns parameters, and `forward()` applies those parameters to an input vector.
 
@@ -277,7 +272,7 @@ Neural networks need random initial weights.
 
 If every weight starts at zero, all neurons in a layer behave identically. They receive the same gradients and learn the same thing. This is called symmetry, and it prevents hidden layers from becoming useful.
 
-So we initialize weights with small random values.
+So we initialize weights with small random values. Small matters because very large initial values can push activations into extreme ranges immediately, which often makes learning unstable or very slow.
 
 For a beginner implementation, this is fine:
 
@@ -301,7 +296,9 @@ For ReLU, He initialization is common:
 stddev = sqrt(2 / input_size)
 ```
 
-For XOR, simple random values are enough.
+For XOR, simple random values are enough. The goal here is not to squeeze out the best convergence possible, but to avoid pathological starting conditions while keeping the code easy to understand.
+
+Using a fixed seed during early debugging is also valuable. It turns a noisy system into a repeatable one, which makes it much easier to tell whether a code change actually fixed something.
 
 ## C++ Code Required
 
@@ -348,9 +345,9 @@ W2(W1x + b1) + b2
 
 is still just another linear function.
 
-XOR is not linearly separable, so a purely linear model cannot learn it.
+XOR is not linearly separable, so a purely linear model cannot learn it. No amount of extra linear layers changes that limitation.
 
-Activation functions introduce nonlinearity.
+Activation functions introduce nonlinearity. They let the network bend decision boundaries instead of only drawing straight ones.
 
 For XOR, a classic choice is sigmoid:
 
@@ -364,13 +361,15 @@ Sigmoid maps any number into the range:
 0 to 1
 ```
 
-This makes it convenient for binary output.
+This makes it convenient for binary output, because the result can be read as a score or probability-like value.
 
 For hidden layers, ReLU is also common:
 
 ```text
 ReLU(x) = max(0, x)
 ```
+
+ReLU is often easier to optimize in larger networks, but sigmoid is fine for this tiny problem and keeps the derivative math more compact.
 
 For your first XOR network, using sigmoid for both hidden and output layers keeps the backpropagation easier to reason about.
 
@@ -452,7 +451,9 @@ input data
 -> result
 ```
 
-The MLP should not care whether it has one hidden layer or many. It just loops over layers.
+The main design gain is composition. A single dense layer is useful, but the interesting behavior comes from chaining several layers together. The container class gives you one place to define architecture, run inference, and later coordinate backpropagation and parameter updates.
+
+The MLP should not care whether it has one hidden layer or many. It just loops over layers. That keeps the architecture data-driven instead of hardcoded around XOR.
 
 ## C++ Code Required
 
@@ -526,6 +527,8 @@ input  = [0, 1]
 target = [1]
 ```
 
+A dataset is just a collection of supervised examples: inputs paired with the outputs you want the network to produce. The network does not magically infer your intent; the loss function is the mechanism that tells it what “better” means.
+
 A simple first loss is mean squared error:
 
 ```text
@@ -550,7 +553,7 @@ The derivative of MSE with respect to prediction is:
 dLoss/dPrediction = 2 * (prediction - target)
 ```
 
-You need this derivative because backpropagation starts at the output and moves backward through the network.
+You need this derivative because backpropagation starts at the output and moves backward through the network. The loss turns a vague idea of wrongness into a concrete numeric signal the optimizer can follow.
 
 ## C++ Code Required
 
@@ -566,6 +569,23 @@ struct Sample
 using Dataset = std::vector<Sample>;
 ```
 
+If you want compact sample literals with Eigen, add a tiny local helper:
+
+```cpp
+Vector make_vector(std::initializer_list<float> values)
+{
+    Vector result(static_cast<Eigen::Index>(values.size()));
+    Eigen::Index i = 0;
+
+    for (float value : values)
+    {
+        result[i++] = value;
+    }
+
+    return result;
+}
+```
+
 Create loss helpers:
 
 ```cpp
@@ -577,10 +597,10 @@ Create the XOR dataset:
 
 ```cpp
 Dataset xor_data = {
-    {{0.0f, 0.0f}, {0.0f}},
-    {{0.0f, 1.0f}, {1.0f}},
-    {{1.0f, 0.0f}, {1.0f}},
-    {{1.0f, 1.0f}, {0.0f}},
+    {make_vector({0.0f, 0.0f}), make_vector({0.0f})},
+    {make_vector({0.0f, 1.0f}), make_vector({1.0f})},
+    {make_vector({1.0f, 0.0f}), make_vector({1.0f})},
+    {make_vector({1.0f, 1.0f}), make_vector({0.0f})},
 };
 ```
 
@@ -642,6 +662,8 @@ Then it computes:
 dL/dz = dL/da * activation_derivative(z)
 ```
 
+This is the chain rule in action. The layer output depends on `z`, and `z` depends on the weights, biases, and inputs. Backpropagation systematically multiplies those sensitivities together.
+
 For each weight:
 
 ```text
@@ -663,6 +685,8 @@ dL/dx[j] = sum over i of W[i][j] * dL/dz[i]
 This `dL/dx` is passed to the previous layer.
 
 In game-dev terms, forward propagation is evaluating a graph from input to output. Backpropagation is walking the graph backward and computing how sensitive the final error is to each intermediate value.
+
+The caching requirement follows naturally from this: during the backward pass, you need the same input and activation values that were used during the forward pass. Without saving them, the layer cannot compute correct gradients.
 
 ## C++ Code Required
 
@@ -736,7 +760,7 @@ For biases:
 b[i] = b[i] - learning_rate * db[i]
 ```
 
-The learning rate controls step size.
+The learning rate controls step size. You can think of it as how aggressively the network trusts the current gradient estimate.
 
 Too small:
 
@@ -749,6 +773,8 @@ Too large:
 ```text
 training may explode or bounce around
 ```
+
+The goal is not to move directly to the perfect answer in one step. The goal is to make many small corrections that, on average, reduce loss over time.
 
 For XOR, try values like:
 
@@ -811,6 +837,8 @@ for epoch in epochs:
     print average loss sometimes
 ```
 
+One pass over the full dataset is an epoch. Because the starting weights are random and the updates are incremental, one epoch is rarely enough. The network improves by repeatedly revisiting the same small set of examples and slowly reshaping its internal representation.
+
 For XOR, you may need thousands of epochs.
 
 A typical result after training:
@@ -822,7 +850,7 @@ A typical result after training:
 [1, 1] -> 0.03
 ```
 
-Because the output uses sigmoid, interpret values near `0` as false and values near `1` as true.
+Because the output uses sigmoid, interpret values near `0` as false and values near `1` as true. Exact 0 and 1 are not expected; what matters is that the network separates the two classes cleanly.
 
 ## C++ Code Required
 
@@ -885,6 +913,8 @@ Useful checks:
 - Is the learning rate too high?
 - Are matrix shapes correct?
 
+A good debugging habit is to treat the network like any other numerical system: inspect intermediate values, verify invariants, and reduce the problem size when needed. For example, if full-network training looks wrong, try one sample, one layer, or even one neuron and make sure the numbers behave as expected.
+
 For sigmoid, a common issue is saturation. If inputs to sigmoid become very large positive or negative numbers, the derivative becomes tiny, and learning slows down.
 
 ## C++ Code Required
@@ -942,8 +972,12 @@ mlp.train(dataset, TrainConfig{
     .learning_rate = 0.5f
 });
 
-Vector output = mlp.predict({0.0f, 1.0f});
+Vector sample(2);
+sample << 0.0f, 1.0f;
+Vector output = mlp.predict(sample);
 ```
+
+At this point you are shifting priorities from “prove the math works” to “make the code pleasant and safe to use again later.” A cleaner API reduces accidental misuse, centralizes assertions, and makes later experiments much faster.
 
 Avoid over-engineering too early. The first goal is correctness. After that, improve ergonomics.
 
@@ -1003,6 +1037,8 @@ weights per layer
 biases per layer
 ```
 
+The important idea is that parameters are not enough by themselves. You also need the architecture metadata that tells you how to interpret those parameters. A list of raw floats is meaningless unless you know which layer they belong to and what shapes they have.
+
 For a first implementation, a plain text format is fine. This makes it easy to inspect and debug.
 
 Later, you can use binary serialization.
@@ -1052,25 +1088,15 @@ biases
 
 The initial version prioritizes clarity. Once it works, you can make the data layout more cache-friendly.
 
-Instead of:
+One simple Eigen-oriented step is to switch to row-major storage explicitly:
 
 ```cpp
-std::vector<std::vector<float>> weights;
+using RowMajorMatrix = Eigen::Matrix<float, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 ```
 
-Use a flat vector:
+This keeps Eigen’s API while giving you a contiguous row-major layout that can be friendlier for some loops and serialization tasks.
 
-```cpp
-std::vector<float> weights;
-```
-
-With indexing:
-
-```cpp
-weights[row * input_size + col]
-```
-
-This improves locality and avoids many small allocations.
+The tradeoff is readability versus performance. `Eigen::MatrixXf` is concise and expressive, while choosing a more explicit storage order adds a little complexity in exchange for tighter control over layout.
 
 In game-engine terms, this is the same reason you might prefer a contiguous component array over many separately allocated objects.
 
@@ -1086,17 +1112,8 @@ Matrix m_weight_gradients;
 Into:
 
 ```cpp
-std::vector<float> m_weights;
-std::vector<float> m_weight_gradients;
-```
-
-Add helper:
-
-```cpp
-size_t weight_index(size_t output_neuron, size_t input_neuron) const
-{
-    return output_neuron * m_input_size + input_neuron;
-}
+RowMajorMatrix m_weights;
+RowMajorMatrix m_weight_gradients;
 ```
 
 ## Tasks
@@ -1120,7 +1137,7 @@ The first training loop updates weights after every sample. This is stochastic g
 
 Mini-batch training instead accumulates gradients over several samples, then applies one averaged update.
 
-For tiny XOR, this does not matter much. But for real datasets, mini-batches are standard.
+For tiny XOR, this does not matter much. But for real datasets, mini-batches are standard because they balance two competing goals: noisy but frequent updates from single-sample SGD, and stable but expensive updates from full-batch training.
 
 The idea:
 
@@ -1133,6 +1150,8 @@ for sample in batch:
 average gradients
 apply update
 ```
+
+This also separates gradient computation from parameter application, which is a useful structural step if you later want momentum, Adam, or parallel batch processing.
 
 ## C++ Code Required
 
@@ -1169,6 +1188,8 @@ Where `scale` might be:
 ## Theory
 
 Once XOR works, the MLP does not care where inputs come from.
+
+That is one of the main lessons of the exercise: XOR is not the final application, it is the smallest problem that forces you to implement the core machinery correctly.
 
 The eventual audio-emotion version might use:
 
@@ -1220,6 +1241,8 @@ or standardized as:
 ```text
 mean 0, standard deviation 1
 ```
+
+Without normalization, one feature can dominate simply because its numeric range is larger, not because it is actually more informative.
 
 ## C++ Code Required
 

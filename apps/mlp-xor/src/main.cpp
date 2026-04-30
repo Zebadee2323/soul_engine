@@ -1,15 +1,15 @@
 #include <iostream>
-
-#include "math.hpp"
+#include <Eigen/Dense>
 
 int main() {
-    Matrix matrix = {
-        {1.0f, 2.0f},
-        {3.0f, 4.0f},
-    };
-    Vector vector = {5.0f, 6.0f};
+    Eigen::Matrix2f matrix;
+    matrix << 1.0f, 2.0f,
+              3.0f, 4.0f;
 
-    Vector result = mat_vec_mul(matrix, vector);
+    Eigen::Vector2f vector;
+    vector << 5.0f, 6.0f;
+
+    const Eigen::Vector2f result = matrix * vector;
 
     std::cout << "Result: [" << result[0] << ", " << result[1] << "]" << '\n';
     return 0;

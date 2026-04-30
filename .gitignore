@@ -43,6 +43,7 @@ Thumbs.db
 *.swp
 *.swo
 *~
+CMakeUserPresets.json
 
 # Environment and local overrides
 .env

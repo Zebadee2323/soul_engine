@@ -1,0 +1,53 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "all-debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "all-release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "app-mlp-xor-debug",
+      "configurePreset": "debug",
+      "targets": [
+        "mlp_xor"
+      ]
+    },
+    {
+      "name": "app-mlp-xor-release",
+      "configurePreset": "release",
+      "targets": [
+        "mlp_xor"
+      ]
+    }
+  ]
+}
