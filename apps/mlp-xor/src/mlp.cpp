@@ -18,7 +18,7 @@ Mlp::Mlp(const std::vector<DenseLayerConfig>& configs) {
     }
 }
 
-Eigen::VectorXf Mlp::forward (const Eigen::VectorXf& x) {
+mlp::VectorXf Mlp::forward (const mlp::VectorXf& x) {
     auto a = x;
     for (DenseLayer& layer : m_layers) {
         a = layer.forward(a);
@@ -26,7 +26,7 @@ Eigen::VectorXf Mlp::forward (const Eigen::VectorXf& x) {
     return a;
 }
 
-void Mlp::backward(const Eigen::VectorXf& d_loss) {
+void Mlp::backward(const mlp::VectorXf& d_loss) {
     auto gradient = d_loss;
     for (auto layer = m_layers.rbegin(); layer != m_layers.rend(); ++layer) {
         gradient = layer->backward(gradient);

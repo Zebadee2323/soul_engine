@@ -18,18 +18,18 @@ DenseLayer::DenseLayer(Eigen::Index input_size, Eigen::Index output_size, Activa
     m_activation_type       (activation_type),
     m_weights               (output_size, input_size),
     m_biases                (output_size),
-    m_last_input            (Eigen::VectorXf::Zero(input_size)),
-    m_last_z                (Eigen::VectorXf::Zero(output_size)),
-    m_last_activation       (Eigen::VectorXf::Zero(output_size)),
-    m_weight_gradients      (Eigen::MatrixXf::Zero(output_size, input_size)),
-    m_bias_gradients        (Eigen::VectorXf::Zero(output_size))
+    m_last_input            (mlp::VectorXf::Zero(input_size)),
+    m_last_z                (mlp::VectorXf::Zero(output_size)),
+    m_last_activation       (mlp::VectorXf::Zero(output_size)),
+    m_weight_gradients      (mlp::MatrixXf::Zero(output_size, input_size)),
+    m_bias_gradients        (mlp::VectorXf::Zero(output_size))
 {
     auto rng = std::mt19937();
     randomize_weights(rng, -1.0f, 1.0f);
     randomize_biases(rng, -1.0f, 1.0f);
 }
 
-Eigen::VectorXf DenseLayer::forward(const Eigen::VectorXf& x) {
+mlp::VectorXf DenseLayer::forward(const mlp::VectorXf& x) {
     assert(x.size() == m_input_size);
     m_last_input = x;
     m_last_z = m_weights * x + m_biases;
@@ -37,10 +37,10 @@ Eigen::VectorXf DenseLayer::forward(const Eigen::VectorXf& x) {
     return m_last_activation;
 }
 
-Eigen::VectorXf DenseLayer::backward(const Eigen::VectorXf& d_y) {
+mlp::VectorXf DenseLayer::backward(const mlp::VectorXf& d_y) {
     assert(d_y.size() == m_output_size);
-    Eigen::VectorXf d_a = activation_derivative(m_last_activation, m_activation_type);
-    Eigen::VectorXf d_z = d_y.cwiseProduct(d_a);
+    mlp::VectorXf d_a = activation_derivative(m_last_activation, m_activation_type);
+    mlp::VectorXf d_z = d_y.cwiseProduct(d_a);
     m_weight_gradients = d_z * m_last_input.transpose();
     m_bias_gradients = d_z;
     return m_weights.transpose() * d_z;
