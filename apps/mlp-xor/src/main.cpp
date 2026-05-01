@@ -3,9 +3,9 @@
 #include <Eigen/Dense>
 // --------------------------------------------------------------------------------------------------------------------
 #include "dense_layer.hpp"
+#include "math.hpp"
 
-bool confirm_phase_2_output(const Eigen::VectorXf& output)
-{
+bool confirm_phase_2_output(const Eigen::VectorXf& output) {
     const Eigen::VectorXf expected =
         Eigen::VectorXf::Constant(3, 3.0f);
 
@@ -20,12 +20,11 @@ bool confirm_phase_2_output(const Eigen::VectorXf& output)
     return matches;
 }
 
-int main() 
-{
+int main() {
     Eigen::VectorXf input(2);
     input << 1.0f, 2.0f;
 
-    mlp::DenseLayer dense_layer(2, 3);
+    mlp::DenseLayer dense_layer(2, 3, mlp::ActivationType::Sigmoid);
     const Eigen::VectorXf output = dense_layer.forward(input);
 
     std::cout << "Result:\n" << output << '\n';
