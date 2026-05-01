@@ -1,3 +1,4 @@
+#include <Eigen/Core>
 #include <cassert>
 #include <random>
 // --------------------------------------------------------------------------------------------------------------------
@@ -8,21 +9,21 @@ namespace mlp
 {
 
 DenseLayer::DenseLayer(const DenseLayerConfig& config) :
-    DenseLayer      (config.input_size, config.output_size, config.activation_type)
+    DenseLayer              (config.input_size, config.output_size, config.activation_type)
 {
 }
 
 DenseLayer::DenseLayer(Eigen::Index input_size, Eigen::Index output_size, ActivationType activation_type) :
-    m_input_size        (input_size),
-    m_output_size       (output_size),
-    m_activation_type   (activation_type),
-    m_weights           (output_size, input_size),
-    m_biases            (output_size),
-    m_last_input        (Eigen::VectorXf::Zero(input_size)),
-    m_last_z            (Eigen::VectorXf::Zero(output_size)),
-    m_last_activation   (Eigen::VectorXf::Zero(output_size)),
-    m_weight_gradients  (Eigen::MatrixXf::Zero(output_size, input_size)),
-    m_bias_gradients    (Eigen::VectorXf::Zero(output_size))
+    m_input_size            (input_size),
+    m_output_size           (output_size),
+    m_activation_type       (activation_type),
+    m_weights               (output_size, input_size),
+    m_biases                (output_size),
+    m_last_input            (Eigen::VectorXf::Zero(input_size)),
+    m_last_z                (Eigen::VectorXf::Zero(output_size)),
+    m_last_activation       (Eigen::VectorXf::Zero(output_size)),
+    m_weight_gradients      (Eigen::MatrixXf::Zero(output_size, input_size)),
+    m_bias_gradients        (Eigen::VectorXf::Zero(output_size))
 {
     auto rng = std::mt19937();
     randomize_weights(rng, -1.0f, 1.0f);
@@ -44,6 +45,11 @@ Eigen::VectorXf DenseLayer::backward(const Eigen::VectorXf& output_gradient) {
     m_weight_gradients = d_z * m_last_input.transpose();
     m_bias_gradients = d_z;
     return m_weights.transpose() * d_z;
+}
+
+void DenseLayer::apply_gradients(float learning_rate) {
+    m_weights -= learning_rate * m_weight_gradients;
+    m_biases -= learning_rate * m_bias_gradients;
 }
 
 void DenseLayer::randomize_weights(std::mt19937& rng, float min, float max) {

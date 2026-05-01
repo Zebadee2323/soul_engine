@@ -26,6 +26,7 @@ public:
 
     Eigen::VectorXf         forward                 (const Eigen::VectorXf& input);
     Eigen::VectorXf         backward                (const Eigen::VectorXf& output_gradient);
+    void                    apply_gradients         (float learning_rate);
 
     void                    randomize_weights       (std::mt19937& rng, float min, float max);
     void                    randomize_biases        (std::mt19937& rng, float min, float max);
