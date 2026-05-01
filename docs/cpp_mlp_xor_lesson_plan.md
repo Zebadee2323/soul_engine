@@ -316,8 +316,8 @@ Then initialize weights in the `DenseLayer` constructor.
 
 ## Tasks
 
-- [ ] Add a random-number helper.
-- [ ] Choose a fixed seed for reproducible debugging.
+- [X] Add a random-number helper.
+- [X] Choose a fixed seed for reproducible debugging.
 - [ ] Initialize weights randomly.
 - [ ] Initialize biases to `0.0f`.
 - [ ] Print the initial weights of a small layer.
