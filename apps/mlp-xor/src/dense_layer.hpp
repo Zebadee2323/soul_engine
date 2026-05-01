@@ -5,6 +5,9 @@
 // --------------------------------------------------------------------------------------------------------------------
 #include <Eigen/Dense>
 
+namespace mlp
+{
+
 class DenseLayer
 {
 public:
@@ -20,3 +23,5 @@ private:
     Eigen::MatrixXf     m_weights;
     Eigen::VectorXf     m_biases;
 };
+
+}

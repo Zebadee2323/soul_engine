@@ -404,6 +404,28 @@ ReLU'(x) = 1 if x > 0 else 0
 
 For ReLU, it is usually better to use the pre-activation value `z`, not the activated output.
 
+For tanh:
+
+```text
+tanh'(x) = 1 - y²
+```
+
+where `y = tanh(x)`.
+
+Example:
+
+```text
+if y = tanh(x) = 0.8
+
+tanh'(x) = 1 - 0.8²
+         = 1 - 0.64
+         = 0.36
+```
+
+This is convenient because, like sigmoid, you can compute the derivative from the already-activated output.
+
+
+
 To keep the first implementation simple, start with sigmoid only.
 
 ## Tasks

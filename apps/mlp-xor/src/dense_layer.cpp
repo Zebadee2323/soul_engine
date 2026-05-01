@@ -4,6 +4,9 @@
 #include "math.hpp"
 // --------------------------------------------------------------------------------------------------------------------
 
+namespace mlp
+{
+
 DenseLayer::DenseLayer(std::size_t input_size, std::size_t output_size) :
     m_input_size    (input_size),
     m_output_size   (output_size),
@@ -28,4 +31,6 @@ void DenseLayer::randomize_weights(std::mt19937& rng, float min, float max)
 void DenseLayer::randomize_biases(std::mt19937& rng, float min, float max)
 {
     set_random_vector(m_biases, rng, min, max);
+}
+
 }

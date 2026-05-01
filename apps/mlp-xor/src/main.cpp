@@ -25,7 +25,7 @@ int main()
     Eigen::VectorXf input(2);
     input << 1.0f, 2.0f;
 
-    DenseLayer dense_layer(2, 3);
+    mlp::DenseLayer dense_layer(2, 3);
     const Eigen::VectorXf output = dense_layer.forward(input);
 
     std::cout << "Result:\n" << output << '\n';
