@@ -388,6 +388,14 @@ float activate(float x, ActivationType type);
 float activation_derivative_from_output(float activated_value, ActivationType type);
 ```
 
+In this project, keep the activation derivative helpers consistent by making
+them receive the already-activated output value, usually called `a`.
+
+```text
+z = pre-activation value
+a = activation(z)
+```
+
 For sigmoid, if `y = sigmoid(x)`, then:
 
 ```text
@@ -402,7 +410,22 @@ For ReLU:
 ReLU'(x) = 1 if x > 0 else 0
 ```
 
-For ReLU, it is usually better to use the pre-activation value `z`, not the activated output.
+Some implementations compute ReLU's derivative from the pre-activation value
+`z`. For this project, it is also fine to compute it from the activated value
+`a`, because:
+
+```text
+a = ReLU(z)
+a > 0 exactly when z > 0
+```
+
+So the project convention is:
+
+```text
+activation_derivative(a, type)
+```
+
+where `a` is the cached activated output from `forward()`.
 
 For tanh:
 
@@ -676,8 +699,19 @@ how much the loss changes with respect to this layer's output activation
 Then it computes:
 
 ```text
-dL/dz = dL/da * activation_derivative(z)
+dL/dz = dL/da * activation_derivative(a)
 ```
+
+In this lesson plan, `activation_derivative(a)` means the derivative helper
+receives the cached activated output:
+
+```text
+a = activation(z)
+```
+
+This matches the project math helpers. For sigmoid and tanh, the derivative is
+especially convenient to compute from `a`. For ReLU, using `a` also works for
+this project because `a > 0` exactly when `z > 0`.
 
 This is the chain rule in action. The layer output depends on `z`, and `z` depends on the weights, biases, and inputs. Backpropagation systematically multiplies those sensitivities together.
 
@@ -730,6 +764,19 @@ Eigen::VectorXf DenseLayer::backward(const Eigen::VectorXf& output_gradient);
 
 Where `output_gradient` means `dL/da` for this layer.
 
+Before writing code, keep the vector and matrix shapes in mind:
+
+```text
+input / last_input:        input_size
+z / activation / d_z:      output_size
+weights:                  output_size x input_size
+weight_gradients:         output_size x input_size
+bias_gradients:           output_size
+input_gradient:           input_size
+```
+
+If the shapes make sense, the implementation usually falls out naturally.
+
 Inside `backward()`:
 
 1. Compute `d_z`
@@ -737,6 +784,124 @@ Inside `backward()`:
 3. Compute `bias_gradients`
 4. Compute `input_gradient`
 5. Return `input_gradient`
+
+### Step 1: Compute `d_z`
+
+The incoming `output_gradient` is `dL/da`: how much the final loss changes
+when this layer's activated output changes.
+
+But the weights and biases affect `z`, not `a` directly:
+
+```text
+z = W x + b
+a = activation(z)
+```
+
+So the first job is to move the gradient backward through the activation:
+
+```text
+d_z = output_gradient element-wise-multiplied by activation_derivative(...)
+```
+
+For this project, pass the cached activated output:
+
+```text
+d_z = output_gradient element-wise-multiplied by activation_derivative(last_activation)
+```
+
+That keeps the convention consistent with the math helpers:
+
+```text
+activation_derivative(a, type)
+```
+
+Shape check:
+
+```text
+output_gradient: output_size
+activation derivative: output_size
+d_z: output_size
+```
+
+### Step 2: Compute `weight_gradients`
+
+Each weight connects one input neuron to one output neuron:
+
+```text
+z[i] = W[i][0] * x[0] + W[i][1] * x[1] + ... + b[i]
+```
+
+So the gradient for one weight is:
+
+```text
+dL/dW[i][j] = d_z[i] * last_input[j]
+```
+
+This creates an `output_size x input_size` matrix. Conceptually, every output
+gradient is paired with every input value.
+
+Implementation hint: this is an outer product. In Eigen, look for a way to
+multiply a column vector by a row vector, rather than writing nested loops first.
+
+Shape check:
+
+```text
+d_z: output_size
+last_input: input_size
+weight_gradients: output_size x input_size
+```
+
+### Step 3: Compute `bias_gradients`
+
+Biases are simpler because each output neuron has one bias:
+
+```text
+z[i] = ... + b[i]
+```
+
+Changing `b[i]` changes `z[i]` directly, so:
+
+```text
+dL/db[i] = d_z[i]
+```
+
+That means the bias gradient has the same values and shape as `d_z`.
+
+### Step 4: Compute `input_gradient`
+
+The previous layer needs to know how much the loss changes with respect to this
+layer's input.
+
+Each input contributes to every output through the weights, so each input
+gradient gathers contributions from all output neurons:
+
+```text
+dL/dx[j] = sum over i of W[i][j] * d_z[i]
+```
+
+This is the same idea as walking backward through the weight matrix.
+
+Shape check:
+
+```text
+weights: output_size x input_size
+d_z: output_size
+input_gradient: input_size
+```
+
+If your matrix multiplication does not produce an `input_size` vector, the
+weight matrix probably needs to be transposed for this step.
+
+### Sanity checks while implementing
+
+- Assert that `output_gradient` has `output_size` elements.
+- After `backward()`, `weight_gradients` should have the same shape as
+  `weights`.
+- `bias_gradients` should have the same shape as `biases`.
+- `input_gradient` should have `input_size` elements.
+- If all gradients are zero, check whether the activation derivative is zero.
+- If gradients have the wrong sign, test with a tiny one-layer example and
+  manually compute one weight gradient by hand.
 
 ## Tasks
 

@@ -32,14 +32,14 @@ Use the checked-in CMake presets:
 
 ```bash
 cmake --preset debug
-cmake --build --preset all-debug
+cmake --build --preset debug
 ```
 
 Release build:
 
 ```bash
 cmake --preset release
-cmake --build --preset all-release
+cmake --build --preset release
 ```
 
 When CMake configures with the vcpkg toolchain, vcpkg will automatically install any missing manifest dependencies into the repo-local `vcpkg_installed/` directory.
@@ -50,14 +50,14 @@ Configure once from the repo root, then build only the target you want:
 
 ```bash
 cmake --preset debug
-cmake --build --preset app-mlp-xor-debug
+cmake --build --preset mlp-debug
 ```
 
 Release:
 
 ```bash
 cmake --preset release
-cmake --build --preset app-mlp-xor-release
+cmake --build --preset mlp-release
 ```
 
 As more apps and libraries are added, give each CMake target a matching build preset at the repo root. Keep presets at the repo root rather than inside each app folder.

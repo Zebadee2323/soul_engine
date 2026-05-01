@@ -28,22 +28,22 @@
   ],
   "buildPresets": [
     {
-      "name": "all-debug",
+      "name": "debug",
       "configurePreset": "debug"
     },
     {
-      "name": "all-release",
+      "name": "release",
       "configurePreset": "release"
     },
     {
-      "name": "app-mlp-xor-debug",
+      "name": "mlp-debug",
       "configurePreset": "debug",
       "targets": [
         "mlp_xor"
       ]
     },
     {
-      "name": "app-mlp-xor-release",
+      "name": "mlp-release",
       "configurePreset": "release",
       "targets": [
         "mlp_xor"

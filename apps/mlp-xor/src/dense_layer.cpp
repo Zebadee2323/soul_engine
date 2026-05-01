@@ -1,5 +1,5 @@
-#include <Eigen/Core>
 #include <cassert>
+#include <random>
 // --------------------------------------------------------------------------------------------------------------------
 #include "dense_layer.hpp"
 // --------------------------------------------------------------------------------------------------------------------
@@ -12,20 +12,38 @@ DenseLayer::DenseLayer(const DenseLayerConfig& config) :
 {
 }
 
-DenseLayer::DenseLayer(std::size_t input_size, std::size_t output_size, ActivationType activation_type) :
-    m_input_size    (input_size),
-    m_output_size   (output_size),
-    m_weights       (Eigen::MatrixXf::Ones(output_size, input_size)),
-    m_biases        (Eigen::VectorXf::Zero(output_size)),
-    m_activation    (activation_type)
+DenseLayer::DenseLayer(Eigen::Index input_size, Eigen::Index output_size, ActivationType activation_type) :
+    m_input_size        (input_size),
+    m_output_size       (output_size),
+    m_activation_type   (activation_type),
+    m_weights           (output_size, input_size),
+    m_biases            (output_size),
+    m_last_input        (Eigen::VectorXf::Zero(input_size)),
+    m_last_z            (Eigen::VectorXf::Zero(output_size)),
+    m_last_activation   (Eigen::VectorXf::Zero(output_size)),
+    m_weight_gradients  (Eigen::MatrixXf::Zero(output_size, input_size)),
+    m_bias_gradients    (Eigen::VectorXf::Zero(output_size))
 {
-    assert(input_size > 0);
-    assert(output_size > 0);
+    auto rng = std::mt19937();
+    randomize_weights(rng, -1.0f, 1.0f);
+    randomize_biases(rng, -1.0f, 1.0f);
 }
 
-Eigen::VectorXf DenseLayer::forward(const Eigen::VectorXf& input) const {
-    assert(input.size() == static_cast<Eigen::Index>(m_input_size));
-    return apply_activation(m_weights * input + m_biases, m_activation);
+Eigen::VectorXf DenseLayer::forward(const Eigen::VectorXf& input) {
+    assert(input.size() == m_input_size);
+    m_last_input = input;
+    m_last_z = m_weights * input + m_biases;
+    m_last_activation = apply_activation(m_last_z, m_activation_type);
+    return m_last_activation;
+}
+
+Eigen::VectorXf DenseLayer::backward(const Eigen::VectorXf& output_gradient) {
+    assert(output_gradient.size() == m_output_size);
+    Eigen::VectorXf d_a = activation_derivative(m_last_activation, m_activation_type);
+    Eigen::VectorXf d_z = output_gradient.cwiseProduct(d_a);
+    m_weight_gradients = d_z * m_last_input.transpose();
+    m_bias_gradients = d_z;
+    return m_weights.transpose() * d_z;
 }
 
 void DenseLayer::randomize_weights(std::mt19937& rng, float min, float max) {

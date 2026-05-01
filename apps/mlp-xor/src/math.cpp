@@ -31,19 +31,19 @@ void set_random_matrix(Eigen::MatrixXf& matrix, std::mt19937& rng, float min, fl
     }
 }
 
-Eigen::VectorXf apply_activation(const Eigen::VectorXf& x, ActivationType activation_type) {
+Eigen::VectorXf apply_activation(const Eigen::VectorXf& z, ActivationType activation_type) {
     switch (activation_type) {
         case ActivationType::None:
-            return x;
+            return z;
         case ActivationType::Relu:
-            return relu(x);
+            return relu(z);
         case ActivationType::Sigmoid:
-            return sigmoid(x);
+            return sigmoid(z);
         case ActivationType::TanH:
-            return tanh(x);
+            return tanh(z);
     }
 
-    return x;
+    return z;
 }
 
 float mse (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target) {
@@ -54,6 +54,21 @@ float mse (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target) {
 Eigen::VectorXf mse_derivative (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target) {
     assert(prediction.size() == target.size());
     return 2.0f * (prediction - target) / static_cast<float>(prediction.size());
+}
+
+Eigen::VectorXf activation_derivative(const Eigen::VectorXf& a, ActivationType activation_type) {
+    switch (activation_type) {
+        case ActivationType::None:
+            return Eigen::VectorXf::Ones(a.size());
+        case ActivationType::Relu:
+            return relu_derivative(a);
+        case ActivationType::Sigmoid:
+            return sigmoid_derivative(a);
+        case ActivationType::TanH:
+            return tanh_derivative(a);
+    }
+
+    return Eigen::VectorXf::Ones(a.size());
 }
 
 }
