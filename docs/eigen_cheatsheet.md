@@ -22,8 +22,8 @@ target_link_libraries(my_app PRIVATE Eigen3::Eigen)
 Dynamic size:
 
 ```cpp
-using Vector = Eigen::VectorXf;
-using Matrix = Eigen::MatrixXf;
+Eigen::VectorXf v;
+Eigen::MatrixXf m;
 ```
 
 Fixed size:
@@ -53,15 +53,15 @@ Useful mental model:
 Default construction:
 
 ```cpp
-Vector v;   // size 0
-Matrix m;   // 0 x 0
+Eigen::VectorXf v;   // size 0
+Eigen::MatrixXf m;   // 0 x 0
 ```
 
 Create with size:
 
 ```cpp
-Vector v(4);
-Matrix m(3, 2);
+Eigen::VectorXf v(4);
+Eigen::MatrixXf m(3, 2);
 ```
 
 Fill with comma initialization:
@@ -87,36 +87,36 @@ m.resize(5, 3);
 Zeros:
 
 ```cpp
-Vector v = Vector::Zero(4);
-Matrix m = Matrix::Zero(3, 2);
+Eigen::VectorXf v = Eigen::VectorXf::Zero(4);
+Eigen::MatrixXf m = Eigen::MatrixXf::Zero(3, 2);
 ```
 
 Ones:
 
 ```cpp
-Vector v = Vector::Ones(4);
-Matrix m = Matrix::Ones(3, 2);
+Eigen::VectorXf v = Eigen::VectorXf::Ones(4);
+Eigen::MatrixXf m = Eigen::MatrixXf::Ones(3, 2);
 ```
 
 Constant value:
 
 ```cpp
-Vector v = Vector::Constant(4, 0.5f);
-Matrix m = Matrix::Constant(3, 2, -1.0f);
+Eigen::VectorXf v = Eigen::VectorXf::Constant(4, 0.5f);
+Eigen::MatrixXf m = Eigen::MatrixXf::Constant(3, 2, -1.0f);
 ```
 
 Identity:
 
 ```cpp
 Eigen::Matrix3f i = Eigen::Matrix3f::Identity();
-Matrix dyn_i = Matrix::Identity(4, 4);
+Eigen::MatrixXf dyn_i = Eigen::MatrixXf::Identity(4, 4);
 ```
 
 Random:
 
 ```cpp
-Vector v = Vector::Random(4);     // values in [-1, 1]
-Matrix m = Matrix::Random(3, 2);
+Eigen::VectorXf v = Eigen::VectorXf::Random(4);     // values in [-1, 1]
+Eigen::MatrixXf m = Eigen::MatrixXf::Random(3, 2);
 ```
 
 ## Element Access
@@ -146,28 +146,28 @@ Rule of thumb:
 Vector addition and subtraction:
 
 ```cpp
-Vector c = a + b;
-Vector d = a - b;
+Eigen::VectorXf c = a + b;
+Eigen::VectorXf d = a - b;
 ```
 
 Scalar multiply and divide:
 
 ```cpp
-Vector x = 2.0f * v;
-Vector y = v / 3.0f;
+Eigen::VectorXf x = 2.0f * v;
+Eigen::VectorXf y = v / 3.0f;
 ```
 
 Matrix-vector and matrix-matrix multiply:
 
 ```cpp
-Vector y = m * v;
-Matrix p = a * b;
+Eigen::VectorXf y = m * v;
+Eigen::MatrixXf p = a * b;
 ```
 
 Transpose:
 
 ```cpp
-Matrix mt = m.transpose();
+Eigen::MatrixXf mt = m.transpose();
 ```
 
 Dot product:
@@ -182,7 +182,7 @@ Norms:
 float n1 = v.norm();
 float n2 = v.squaredNorm();
 v.normalize();              // modifies in place
-Vector u = v.normalized();  // returns normalized copy
+Eigen::VectorXf u = v.normalized();  // returns normalized copy
 ```
 
 For 3D vectors:
@@ -198,27 +198,27 @@ Eigen distinguishes between linear algebra and element-wise math.
 Element-wise multiply:
 
 ```cpp
-Vector z = a.array() * b.array();
+Eigen::VectorXf z = a.array() * b.array();
 ```
 
 Element-wise division:
 
 ```cpp
-Vector z = a.array() / b.array();
+Eigen::VectorXf z = a.array() / b.array();
 ```
 
 Apply scalar functions element-wise:
 
 ```cpp
-Vector z = v.array().sqrt();
-Vector s = v.array().sin();
-Vector e = v.array().exp();
+Eigen::VectorXf z = v.array().sqrt();
+Eigen::VectorXf s = v.array().sin();
+Eigen::VectorXf e = v.array().exp();
 ```
 
 Convert back to matrix/vector expression:
 
 ```cpp
-Vector z = (a.array() * b.array()).matrix();
+Eigen::VectorXf z = (a.array() * b.array()).matrix();
 ```
 
 Good default rule:
@@ -239,7 +239,7 @@ Assign a row or column:
 
 ```cpp
 m.row(0) = Eigen::RowVector2f(1.0f, 2.0f);
-m.col(1) = Vector::Ones(m.rows());
+m.col(1) = Eigen::VectorXf::Ones(m.rows());
 ```
 
 Take a block:
@@ -296,13 +296,13 @@ Prefer `Eigen::Index` for Eigen dimensions and indices.
 For a linear system `A x = b`:
 
 ```cpp
-Vector x = A.colPivHouseholderQr().solve(b);
+Eigen::VectorXf x = A.colPivHouseholderQr().solve(b);
 ```
 
 For symmetric positive definite matrices:
 
 ```cpp
-Vector x = A.ldlt().solve(b);
+Eigen::VectorXf x = A.ldlt().solve(b);
 ```
 
 Avoid computing an explicit inverse unless you truly need the inverse matrix itself.
@@ -327,7 +327,7 @@ Eigen::ArrayXf y = x * x + 2.0f;
 
 Rule of thumb:
 
-- Use `Matrix`/`Vector` for linear algebra.
+- Use Eigen matrix/vector types for linear algebra.
 - Use `Array` for coefficient-wise math-heavy code.
 
 ## Passing Eigen Objects to Functions
@@ -335,7 +335,7 @@ Rule of thumb:
 Simple and clear:
 
 ```cpp
-float l2_norm(const Vector& v) {
+float l2_norm(const Eigen::VectorXf& v) {
     return v.norm();
 }
 ```
@@ -343,22 +343,22 @@ float l2_norm(const Vector& v) {
 For writable output parameters:
 
 ```cpp
-void scale_in_place(Vector& v, float s) {
+void scale_in_place(Eigen::VectorXf& v, float s) {
     v *= s;
 }
 ```
 
-This is a good default for a small project using `VectorXf` and `MatrixXf`.
+This is a good default for a small project using `Eigen::VectorXf` and `Eigen::MatrixXf`.
 
 ## Example Matching This Repo
 
 ```cpp
 #include <Eigen/Dense>
 
-using Vector = Eigen::VectorXf;
-using Matrix = Eigen::MatrixXf;
-
-Vector forward(const Matrix& weights, const Vector& input, const Vector& bias) {
+Eigen::VectorXf forward(
+    const Eigen::MatrixXf& weights,
+    const Eigen::VectorXf& input,
+    const Eigen::VectorXf& bias) {
     return weights * input + bias;
 }
 ```

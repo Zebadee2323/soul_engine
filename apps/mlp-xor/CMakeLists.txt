@@ -7,6 +7,7 @@ find_package(Eigen3 REQUIRED)
 add_executable(mlp_xor
   src/main.cpp
   src/math.cpp
+  src/dense_layer.cpp
 )
 
 target_compile_features(mlp_xor PRIVATE cxx_std_17)

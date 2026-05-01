@@ -157,15 +157,12 @@ Getting comfortable with shapes now pays off later, because most neural-network 
 
 ## C++ Code Required
 
-Set up basic Eigen aliases and use Eigen operators directly:
+Use Eigen types directly and rely on Eigen operators:
 
 ```cpp
-using Vector = Eigen::VectorXf;
-using Matrix = Eigen::MatrixXf;
-
-Matrix weights(output_size, input_size);
-Vector biases(output_size);
-Vector output = weights * input + biases;
+Eigen::MatrixXf weights(output_size, input_size);
+Eigen::VectorXf biases(output_size);
+Eigen::VectorXf output = weights * input + biases;
 ```
 
 You also want simple shape checking during development:
@@ -177,8 +174,6 @@ assert(biases.size() == output.size());
 
 ## Tasks
 
-- [X] Define `using Vector = Eigen::VectorXf;`.
-- [X] Define `using Matrix = Eigen::MatrixXf;`.
 - [X] Create a matrix with the right `(rows, cols)` shape.
 - [X] Create vectors with the right size.
 - [X] Implement matrix-vector multiplication with Eigen.
@@ -237,13 +232,13 @@ class DenseLayer
 public:
     DenseLayer(size_t input_size, size_t output_size);
 
-    Vector forward(const Vector& input);
+    Eigen::VectorXf forward(const Eigen::VectorXf& input);
 
 private:
     size_t m_input_size;
     size_t m_output_size;
-    Matrix m_weights;
-    Vector m_biases;
+    Eigen::MatrixXf m_weights;
+    Eigen::VectorXf m_biases;
 };
 ```
 
@@ -251,16 +246,16 @@ For now, initialize weights and biases manually or to small hardcoded values.
 
 ## Tasks
 
-- [ ] Create `dense_layer.hpp`.
-- [ ] Create `dense_layer.cpp`.
-- [ ] Add `input_size` and `output_size` members.
-- [ ] Add `weights` and `biases` members.
-- [ ] Implement a constructor that creates the correct weight and bias shapes.
-- [ ] Implement `DenseLayer::forward()`.
-- [ ] In `main.cpp`, create a `DenseLayer` with `2` inputs and `3` outputs.
-- [ ] Feed it an input like `{1.0f, 2.0f}`.
-- [ ] Print the output vector.
-- [ ] Verify that output size matches the layer output size.
+- [X] Create `dense_layer.hpp`.
+- [X] Create `dense_layer.cpp`.
+- [X] Add `input_size` and `output_size` members.
+- [X] Add `weights` and `biases` members.
+- [X] Implement a constructor that creates the correct weight and bias shapes.
+- [X] Implement `DenseLayer::forward()`.
+- [X] In `main.cpp`, create a `DenseLayer` with `2` inputs and `3` outputs.
+- [X] Feed it an input like `{1.0f, 2.0f}`.
+- [X] Print the output vector.
+- [X] Verify that output size matches the layer output size.
 
 ---
 
@@ -476,7 +471,7 @@ class Mlp
 public:
     Mlp(const std::vector<LayerConfig>& configs);
 
-    Vector forward(const Vector& input);
+    Eigen::VectorXf forward(const Eigen::VectorXf& input);
 
 private:
     std::vector<DenseLayer> m_layers;
@@ -562,8 +557,8 @@ Create:
 ```cpp
 struct Sample
 {
-    Vector input;
-    Vector target;
+    Eigen::VectorXf input;
+    Eigen::VectorXf target;
 };
 
 using Dataset = std::vector<Sample>;
@@ -572,9 +567,9 @@ using Dataset = std::vector<Sample>;
 If you want compact sample literals with Eigen, add a tiny local helper:
 
 ```cpp
-Vector make_vector(std::initializer_list<float> values)
+Eigen::VectorXf make_vector(std::initializer_list<float> values)
 {
-    Vector result(static_cast<Eigen::Index>(values.size()));
+    Eigen::VectorXf result(static_cast<Eigen::Index>(values.size()));
     Eigen::Index i = 0;
 
     for (float value : values)
@@ -589,8 +584,8 @@ Vector make_vector(std::initializer_list<float> values)
 Create loss helpers:
 
 ```cpp
-float mean_squared_error(const Vector& prediction, const Vector& target);
-Vector mean_squared_error_derivative(const Vector& prediction, const Vector& target);
+float mean_squared_error(const Eigen::VectorXf& prediction, const Eigen::VectorXf& target);
+Eigen::VectorXf mean_squared_error_derivative(const Eigen::VectorXf& prediction, const Eigen::VectorXf& target);
 ```
 
 Create the XOR dataset:
@@ -693,22 +688,22 @@ The caching requirement follows naturally from this: during the backward pass, y
 The layer must cache values from the forward pass:
 
 ```cpp
-Vector m_last_input;
-Vector m_last_z;
-Vector m_last_activation;
+Eigen::VectorXf m_last_input;
+Eigen::VectorXf m_last_z;
+Eigen::VectorXf m_last_activation;
 ```
 
 Add gradient storage:
 
 ```cpp
-Matrix m_weight_gradients;
-Vector m_bias_gradients;
+Eigen::MatrixXf m_weight_gradients;
+Eigen::VectorXf m_bias_gradients;
 ```
 
 Add:
 
 ```cpp
-Vector DenseLayer::backward(const Vector& output_gradient);
+Eigen::VectorXf DenseLayer::backward(const Eigen::VectorXf& output_gradient);
 ```
 
 Where `output_gradient` means `dL/da` for this layer.
@@ -922,11 +917,11 @@ For sigmoid, a common issue is saturation. If inputs to sigmoid become very larg
 Add debug helpers:
 
 ```cpp
-void print_vector(const Vector& v);
-void print_matrix(const Matrix& m);
-float vector_min(const Vector& v);
-float vector_max(const Vector& v);
-bool contains_nan(const Vector& v);
+void print_vector(const Eigen::VectorXf& v);
+void print_matrix(const Eigen::MatrixXf& m);
+float vector_min(const Eigen::VectorXf& v);
+float vector_max(const Eigen::VectorXf& v);
+bool contains_nan(const Eigen::VectorXf& v);
 ```
 
 Optional:
@@ -972,9 +967,9 @@ mlp.train(dataset, TrainConfig{
     .learning_rate = 0.5f
 });
 
-Vector sample(2);
+Eigen::VectorXf sample(2);
 sample << 0.0f, 1.0f;
-Vector output = mlp.predict(sample);
+Eigen::VectorXf output = mlp.predict(sample);
 ```
 
 At this point you are shifting priorities from “prove the math works” to “make the code pleasant and safe to use again later.” A cleaner API reduces accidental misuse, centralizes assertions, and makes later experiments much faster.
@@ -997,7 +992,7 @@ struct TrainConfig
 Add:
 
 ```cpp
-Vector Mlp::predict(const Vector& input);
+Eigen::VectorXf Mlp::predict(const Eigen::VectorXf& input);
 void Mlp::train(const Dataset& dataset, const TrainConfig& config);
 ```
 
@@ -1105,8 +1100,8 @@ In game-engine terms, this is the same reason you might prefer a contiguous comp
 Change:
 
 ```cpp
-Matrix m_weights;
-Matrix m_weight_gradients;
+Eigen::MatrixXf m_weights;
+Eigen::MatrixXf m_weight_gradients;
 ```
 
 Into:
@@ -1251,11 +1246,11 @@ Eventually add:
 ```cpp
 struct NormalizationStats
 {
-    Vector mean;
-    Vector stddev;
+    Eigen::VectorXf mean;
+    Eigen::VectorXf stddev;
 };
 
-Vector normalize(const Vector& input, const NormalizationStats& stats);
+Eigen::VectorXf normalize(const Eigen::VectorXf& input, const NormalizationStats& stats);
 ```
 
 For classification labels, use one-hot vectors:
