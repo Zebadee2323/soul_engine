@@ -1,5 +1,7 @@
-#include <Eigen/Dense>
 #include <iostream>
+// --------------------------------------------------------------------------------------------------------------------
+#include <Eigen/Dense>
+// --------------------------------------------------------------------------------------------------------------------
 #include "dense_layer.hpp"
 
 bool confirm_phase_2_output(const Eigen::VectorXf& output)
@@ -18,7 +20,7 @@ bool confirm_phase_2_output(const Eigen::VectorXf& output)
     return matches;
 }
 
-int main()
+int main() 
 {
     Eigen::VectorXf input(2);
     input << 1.0f, 2.0f;

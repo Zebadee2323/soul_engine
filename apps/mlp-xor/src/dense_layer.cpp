@@ -1,6 +1,8 @@
 #include <cassert>
+// --------------------------------------------------------------------------------------------------------------------
 #include "dense_layer.hpp"
 #include "math.hpp"
+// --------------------------------------------------------------------------------------------------------------------
 
 DenseLayer::DenseLayer(std::size_t input_size, std::size_t output_size) :
     m_input_size    (input_size),
