@@ -1,4 +1,6 @@
 #include "math.hpp"
+#include <Eigen/Core>
+#include <cassert>
 // --------------------------------------------------------------------------------------------------------------------
 
 namespace mlp
@@ -42,6 +44,16 @@ Eigen::VectorXf apply_activation(const Eigen::VectorXf& x, ActivationType activa
     }
 
     return x;
+}
+
+float mse (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target) {
+    assert(prediction.size() == target.size());
+    return (prediction - target).cwisePow(2.0f).mean();
+}
+
+Eigen::VectorXf mse_derivative (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target) {
+    assert(prediction.size() == target.size());
+    return 2.0f * (prediction - target) / static_cast<float>(prediction.size());
 }
 
 }

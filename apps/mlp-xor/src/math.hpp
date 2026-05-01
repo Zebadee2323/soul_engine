@@ -27,4 +27,7 @@ inline Eigen::VectorXf      tanh_derivative     (const Eigen::VectorXf& x) { ret
 
 Eigen::VectorXf             apply_activation    (const Eigen::VectorXf& x, ActivationType activation_type);
 
+float                       mse                 (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target);
+Eigen::VectorXf             mse_derivative      (const Eigen::VectorXf& prediction, const Eigen::VectorXf& target);
+
 }

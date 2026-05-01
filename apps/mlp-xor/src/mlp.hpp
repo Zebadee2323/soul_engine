@@ -1,5 +1,6 @@
 #pragma once
 // --------------------------------------------------------------------------------------------------------------------
+#include <Eigen/Core>
 #include <vector>
 // --------------------------------------------------------------------------------------------------------------------
 #include <Eigen/Dense>
@@ -8,6 +9,12 @@
 
 namespace mlp
 {
+
+struct Sample
+{
+    Eigen::VectorXf             input;
+    Eigen::VectorXf             target;
+};
 
 
 class Mlp
