@@ -23,14 +23,14 @@ public:
     explicit                DenseLayer              (const DenseLayerConfig& config);
                             DenseLayer              (Eigen::Index input_size, Eigen::Index output_size,
                                                         ActivationType activation_type);
-
-    Eigen::VectorXf         forward                 (const Eigen::VectorXf& input);
-    Eigen::VectorXf         backward                (const Eigen::VectorXf& output_gradient);
+// --------------------------------------------------------------------------------------------------------------------
+    Eigen::VectorXf         forward                 (const Eigen::VectorXf& x);
+    Eigen::VectorXf         backward                (const Eigen::VectorXf& d_y);
     void                    apply_gradients         (float learning_rate);
-
+// --------------------------------------------------------------------------------------------------------------------
     void                    randomize_weights       (std::mt19937& rng, float min, float max);
     void                    randomize_biases        (std::mt19937& rng, float min, float max);
-
+// --------------------------------------------------------------------------------------------------------------------
     Eigen::Index            input_size              () const { return m_input_size;     }
     Eigen::Index            output_size             () const { return m_output_size;    }
     ActivationType          activation_type         () const { return m_activation_type;     }

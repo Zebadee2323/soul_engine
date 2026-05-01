@@ -8,6 +8,7 @@ add_executable(mlp_xor
   src/main.cpp
   src/math.cpp
   src/dense_layer.cpp
+  src/mlp.cpp
 )
 
 target_compile_features(mlp_xor PRIVATE cxx_std_17)

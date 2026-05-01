@@ -982,6 +982,131 @@ Eventually, you may want gradients accumulated across a batch. For the first ver
 
 This is stochastic gradient descent.
 
+Add to `Mlp`:
+
+```cpp
+void backward(const Eigen::VectorXf& loss_gradient);
+void apply_gradients(float learning_rate);
+```
+
+Where `loss_gradient` is the derivative of the loss with respect to the final
+network output:
+
+```text
+loss_gradient = dL/dy
+```
+
+For example, after a forward pass:
+
+```text
+prediction = mlp.forward(sample.x)
+loss_gradient = mse_derivative(prediction, sample.y_target)
+```
+
+### Implementing `Mlp::backward()`
+
+The network forward pass moves from the first layer to the last layer:
+
+```text
+input -> layer 0 -> layer 1 -> layer 2 -> prediction
+```
+
+The backward pass must move in the opposite direction:
+
+```text
+prediction gradient -> layer 2 -> layer 1 -> layer 0 -> input gradient
+```
+
+Each `DenseLayer::backward()` receives the gradient for that layer's output and
+returns the gradient for that layer's input.
+
+So `Mlp::backward()` should keep one "current gradient" variable:
+
+```text
+current_gradient starts as loss_gradient
+```
+
+Then, for each layer in reverse order:
+
+```text
+current_gradient = layer.backward(current_gradient)
+```
+
+By the time the loop finishes, every layer has computed and stored its own
+weight and bias gradients.
+
+Shape example for a `2 -> 3 -> 1` XOR network:
+
+```text
+loss_gradient:          size 1
+output layer backward:  receives size 1, returns size 3
+hidden layer backward:  receives size 3, returns size 2
+```
+
+That final size-2 gradient is `dL/dx`: how much the loss changes with respect
+to the original network input. For now, you usually do not need to store it.
+
+Implementation hints:
+
+- Use a reverse loop over `m_layers`.
+- Be careful with unsigned indexes if you loop backward with `std::size_t`.
+- You do not need to recompute any forward values inside `Mlp::backward()`.
+  Each layer already cached what it needs during `forward()`.
+- Make sure the function definition includes the class scope:
+
+```cpp
+void Mlp::backward(...)
+```
+
+not just:
+
+```cpp
+void backward(...)
+```
+
+The second version creates a free function instead of implementing the class
+method.
+
+### Implementing `Mlp::apply_gradients()`
+
+After `Mlp::backward()` has filled in gradients for every layer, the network
+needs to apply those gradients to every layer.
+
+This pass can move forward through the layers:
+
+```text
+for each layer:
+    layer.apply_gradients(learning_rate)
+```
+
+For single-sample stochastic gradient descent, the order of applying gradients
+does not matter much here because all gradients were already computed during the
+backward pass.
+
+### One-sample training step
+
+Before jumping into full training, test one complete sample manually:
+
+```text
+prediction_before = mlp.forward(sample.x)
+loss_before = mse(prediction_before, sample.y_target)
+
+loss_gradient = mse_derivative(prediction_before, sample.y_target)
+mlp.backward(loss_gradient)
+mlp.apply_gradients(learning_rate)
+
+prediction_after = mlp.forward(sample.x)
+loss_after = mse(prediction_after, sample.y_target)
+```
+
+Do not expect the loss to always drop dramatically from one update, especially
+with random weights. The goal of this test is mainly to confirm that:
+
+- the code runs end-to-end
+- dimensions line up
+- weights and biases actually change
+- the loss value changes
+
 ## Tasks
 
 - [ ] Add `DenseLayer::apply_gradients(float learning_rate)`.
@@ -989,6 +1114,7 @@ This is stochastic gradient descent.
 - [ ] Update every bias using its gradient.
 - [ ] Add `Mlp::backward(loss_gradient)` that loops through layers in reverse.
 - [ ] Add `Mlp::apply_gradients(learning_rate)`.
+- [ ] Confirm `Mlp::backward` is implemented as a class method, not a free function.
 - [ ] Run one training step on a single XOR sample.
 - [ ] Print loss before and after one update.
 - [ ] Confirm the loss changes.

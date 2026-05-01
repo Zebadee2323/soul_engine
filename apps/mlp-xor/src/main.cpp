@@ -1,33 +1,23 @@
-#include <iostream>
+#include <vector>
 // --------------------------------------------------------------------------------------------------------------------
 #include <Eigen/Dense>
 // --------------------------------------------------------------------------------------------------------------------
-#include "dense_layer.hpp"
-#include "math.hpp"
-
-bool confirm_phase_2_output(const Eigen::VectorXf& output) {
-    const Eigen::VectorXf expected =
-        Eigen::VectorXf::Constant(3, 3.0f);
-
-    const bool matches = output.size() == expected.size()
-        && output.isApprox(expected);
-
-    std::cout << "Expected:\n" << expected << '\n';
-    std::cout << "Actual:\n" << output << '\n';
-    std::cout << (matches ? "Phase 2 check passed.\n"
-                          : "Phase 2 check failed.\n");
-
-    return matches;
-}
+#include "mlp.hpp"
 
 int main() {
-    Eigen::VectorXf input(2);
-    input << 1.0f, 2.0f;
+    const std::vector<mlp::Sample> dataset = {
+        {Eigen::Vector2f(0.0f, 0.0f), Eigen::VectorXf::Constant(1, 0.0f)},
+        {Eigen::Vector2f(0.0f, 1.0f), Eigen::VectorXf::Constant(1, 1.0f)},
+        {Eigen::Vector2f(1.0f, 0.0f), Eigen::VectorXf::Constant(1, 1.0f)},
+        {Eigen::Vector2f(1.0f, 1.0f), Eigen::VectorXf::Constant(1, 0.0f)},
+    };
 
-    mlp::DenseLayer dense_layer(2, 3, mlp::ActivationType::Sigmoid);
-    const Eigen::VectorXf output = dense_layer.forward(input);
+    mlp::Mlp mlp({
+        {2, 3, mlp::ActivationType::Sigmoid},
+        {3, 1, mlp::ActivationType::Sigmoid},
+    });
 
-    std::cout << "Result:\n" << output << '\n';
-    confirm_phase_2_output(output);
+    mlp::Mlp::train(mlp, dataset, 50000, 0.1f);
+
     return 0;
 }
