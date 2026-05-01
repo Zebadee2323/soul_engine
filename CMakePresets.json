@@ -39,11 +39,25 @@
       "name": "mlp-debug",
       "configurePreset": "debug",
       "targets": [
-        "mlp_xor"
+        "mlp"
       ]
     },
     {
       "name": "mlp-release",
+      "configurePreset": "release",
+      "targets": [
+        "mlp"
+      ]
+    },
+    {
+      "name": "mlp-xor-debug",
+      "configurePreset": "debug",
+      "targets": [
+        "mlp_xor"
+      ]
+    },
+    {
+      "name": "mlp-xor-release",
       "configurePreset": "release",
       "targets": [
         "mlp_xor"

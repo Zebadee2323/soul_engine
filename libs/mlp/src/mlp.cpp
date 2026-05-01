@@ -1,6 +1,6 @@
-#include "mlp.hpp"
-#include "dense_layer.hpp"
-#include "math.hpp"
+#include <mlp/mlp.hpp>
+#include <mlp/dense_layer.hpp>
+#include <mlp/math.hpp>
 // --------------------------------------------------------------------------------------------------------------------
 #include <algorithm>
 #include <cassert>
