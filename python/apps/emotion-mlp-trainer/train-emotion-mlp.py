@@ -106,9 +106,11 @@ def train(args: argparse.Namespace) -> None:
     tf.keras.utils.set_random_seed(args.seed)
 
     features, labels, dataset_metadata = load_training_arrays(args.train_data_dir)
-    expected_labels = dataset_metadata.get("label_order", list(LABELS))
-    if list(expected_labels) != list(LABELS):
-        raise ValueError(f"Unexpected label order {expected_labels}; expected {list(LABELS)}.")
+    label_order = list(dataset_metadata.get("label_order", list(LABELS)))
+    if labels.shape[1] != len(label_order):
+        raise ValueError(
+            f"Label array width {labels.shape[1]} does not match metadata label_order length {len(label_order)}."
+        )
 
     model = build_model(
         input_dim=features.shape[1],
@@ -155,7 +157,7 @@ def train(args: argparse.Namespace) -> None:
             "model_path": str(model_path),
             "input_feature_count": int(features.shape[1]),
             "input_normalization": "pre_normalized_by_dataset_transform",
-            "label_order": list(LABELS),
+            "label_order": label_order,
             "feature_names": dataset_metadata["feature_names"],
             "train_data_dir": str(args.train_data_dir),
             "epochs_requested": args.epochs,

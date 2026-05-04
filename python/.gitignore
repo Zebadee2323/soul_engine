@@ -88,5 +88,6 @@ Thumbs.db
 !/lib/pyafex/**
 
 # Training data ignore
+source_data/
 train_data/
 models/

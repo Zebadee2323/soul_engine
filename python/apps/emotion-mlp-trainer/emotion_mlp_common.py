@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-LABELS = ("angry", "happy", "sad", "neutral", "fearful", "disgusted", "surprised")
+LABELS = ("Anger", "Disgust", "Fear", "Happy", "Neutral", "Sad")
 MODEL_FILENAME = "emotion_mlp.keras"
 TRAINING_METADATA_FILENAME = "training_metadata.json"
 

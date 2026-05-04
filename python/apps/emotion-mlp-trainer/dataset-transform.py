@@ -1,54 +1,36 @@
 #!/usr/bin/env python3
-"""Build TensorFlow training data from the Kaggle audio-emotions dataset.
+"""Build TensorFlow training data from source-agnostic WAV manifest CSV files.
 
-The output label for each WAV is a one-hot probability vector ordered as:
+Each CSV row under source_data/ is expected to contain:
 
-    angry, happy, sad, neutral, fearful, disgusted, surprised
+    absolute_wav_path, Anger, Disgust, Fear, Happy, Neutral, Sad
 
-Example:
-
-    ./emotion-dataset-transform.py --max-wavs-per-emotion 10 --output-dir ./data/emotions
+The emotion columns are treated as the output probability/classification vector.
+Most rows are expected to be one-hot, but soft labels are accepted.
 """
 
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import csv
 import json
 import os
-import random
 import sys
-from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 
-DATASET_REF = "uldisvalainis/audio-emotions"
-LABELS = ("angry", "happy", "sad", "neutral", "fearful", "disgusted", "surprised")
-LABEL_ALIASES = {
-    "angry": "angry",
-    "anger": "angry",
-    "happy": "happy",
-    "happiness": "happy",
-    "sad": "sad",
-    "sadness": "sad",
-    "neutral": "neutral",
-    "fearful": "fearful",
-    "fear": "fearful",
-    "disgusted": "disgusted",
-    "disgust": "disgusted",
-    "surprised": "surprised",
-    "surprise": "surprised",
-    # The Kaggle dataset's surprise folder is commonly referenced with this typo.
-    "suprised": "surprised",
-}
+LABELS = ("Anger", "Disgust", "Fear", "Happy", "Neutral", "Sad")
 
 
 @dataclass(frozen=True)
 class Example:
     wav_path: Path
-    label: str
+    labels: list[float]
+    source_csv: Path
+    source_row: int
 
 
 @dataclass(frozen=True)
@@ -65,8 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description=(
-            "Download uldisvalainis/audio-emotions, extract pyafex features from "
-            "WAV files, and save TensorFlow-ready training data."
+            "Read WAV manifest CSV files, extract pyafex features, and save "
+            "TensorFlow-ready emotion training data."
         )
     )
     parser.add_argument(
@@ -76,32 +58,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="pyafex YAML extractor config. Defaults to this app's feature-extractors.yaml.",
     )
     parser.add_argument(
+        "--source-data-dir",
+        type=Path,
+        default=script_dir / "source_data",
+        help="Directory containing source manifest CSV files.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
-        default=script_dir / "data" / "audio-emotions",
+        default=script_dir / "train_data",
         help="Directory to write the TensorFlow dataset and metadata into.",
-    )
-    parser.add_argument(
-        "--max-wavs-per-emotion",
-        type=int,
-        default=None,
-        help="Maximum WAV count to include from each emotion folder. Omit to include all WAVs.",
-    )
-    parser.add_argument(
-        "--dataset-ref",
-        default=DATASET_REF,
-        help=f"KaggleHub dataset ref to download. Defaults to {DATASET_REF}.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=1337,
-        help="Seed used when shuffling each emotion's WAV files before applying the max limit.",
-    )
-    parser.add_argument(
-        "--no-shuffle",
-        action="store_true",
-        help="Do not shuffle WAV files before applying --max-wavs-per-emotion.",
     )
     parser.add_argument(
         "--skip-failures",
@@ -120,51 +86,81 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def canonical_label_for_path(path: Path, dataset_root: Path) -> str | None:
-    """Return the canonical emotion label represented by one of the path folders."""
+def row_is_header(row: list[str]) -> bool:
+    if len(row) < len(LABELS) + 1:
+        return False
+
+    normalized = [cell.strip().lower().replace("_", " ") for cell in row]
+    return (
+        normalized[0] in {"wav path", "absolute wav path", "path"}
+        or tuple(cell.strip() for cell in row[1:len(LABELS) + 1]) == LABELS
+    )
+
+
+def read_label_value(value: str, csv_path: Path, row_number: int, label: str) -> float:
     try:
-        relative_parts = path.relative_to(dataset_root).parts[:-1]
-    except ValueError:
-        relative_parts = path.parts[:-1]
+        parsed = float(value)
+    except ValueError as error:
+        raise ValueError(f"{csv_path}:{row_number}: {label} must be a number, got {value!r}.") from error
 
-    for part in reversed(relative_parts):
-        normalized = part.strip().lower().replace("-", "_").replace(" ", "_")
-        if normalized in LABEL_ALIASES:
-            return LABEL_ALIASES[normalized]
-    return None
+    if parsed < 0.0:
+        raise ValueError(f"{csv_path}:{row_number}: {label} must be greater than or equal to 0.")
+    return parsed
 
 
-def collect_examples(
-    dataset_root: Path,
-    max_wavs_per_emotion: int | None,
-    shuffle: bool,
-    seed: int,
-) -> list[Example]:
-    """Find WAV files grouped by emotion and apply the per-emotion limit locally."""
-    grouped: dict[str, list[Path]] = defaultdict(list)
-    for wav_path in sorted(dataset_root.rglob("*.wav")):
-        label = canonical_label_for_path(wav_path, dataset_root)
-        if label is not None:
-            grouped[label].append(wav_path)
-
-    missing_labels = [label for label in LABELS if not grouped[label]]
-    if missing_labels:
-        raise RuntimeError(
-            "No WAV files were found for emotion folder(s): "
-            + ", ".join(missing_labels)
-            + f"\nSearched under: {dataset_root}"
-        )
-
-    rng = random.Random(seed)
+def read_examples_from_csv(csv_path: Path) -> list[Example]:
     examples: list[Example] = []
-    for label in LABELS:
-        wav_paths = list(grouped[label])
-        if shuffle:
-            rng.shuffle(wav_paths)
-        if max_wavs_per_emotion is not None:
-            wav_paths = wav_paths[:max_wavs_per_emotion]
-        examples.extend(Example(wav_path=wav_path, label=label) for wav_path in wav_paths)
+    with csv_path.open(newline="", encoding="utf-8") as csv_file:
+        reader = csv.reader(csv_file)
+        for row_number, row in enumerate(reader, start=1):
+            if not row or all(not cell.strip() for cell in row):
+                continue
+            if row_number == 1 and row_is_header(row):
+                continue
+            if len(row) != len(LABELS) + 1:
+                raise ValueError(
+                    f"{csv_path}:{row_number}: expected {len(LABELS) + 1} columns "
+                    f"(absolute_wav_path, {', '.join(LABELS)}), got {len(row)}."
+                )
 
+            wav_path = Path(row[0].strip())
+            if not wav_path.is_absolute():
+                raise ValueError(f"{csv_path}:{row_number}: WAV path must be absolute: {wav_path}")
+
+            label_values = [
+                read_label_value(value.strip(), csv_path, row_number, label)
+                for value, label in zip(row[1:], LABELS, strict=True)
+            ]
+            if sum(label_values) <= 0.0:
+                raise ValueError(f"{csv_path}:{row_number}: at least one emotion value must be greater than 0.")
+
+            examples.append(
+                Example(
+                    wav_path=wav_path,
+                    labels=label_values,
+                    source_csv=csv_path,
+                    source_row=row_number,
+                )
+            )
+
+    return examples
+
+
+def collect_examples(source_data_dir: Path) -> list[Example]:
+    """Read all source manifest CSV files in deterministic path order."""
+    if not source_data_dir.is_dir():
+        raise FileNotFoundError(f"Source data directory not found: {source_data_dir}")
+
+    csv_paths = sorted(source_data_dir.glob("*.csv"))
+    if not csv_paths:
+        raise FileNotFoundError(f"No source CSV files found in: {source_data_dir}")
+
+    examples: list[Example] = []
+    for csv_path in csv_paths:
+        examples.extend(read_examples_from_csv(csv_path))
+
+    if not examples:
+        raise RuntimeError(f"No training rows were found in source CSV files under: {source_data_dir}")
     return examples
 
 
@@ -269,7 +265,12 @@ def extract_feature_rows(
         if result.error is not None:
             if not skip_failures:
                 raise RuntimeError(f"{result.example.wav_path}: {result.error}")
-            skipped.append({"wav_path": str(result.example.wav_path), "error": result.error})
+            skipped.append({
+                "wav_path": str(result.example.wav_path),
+                "source_csv": str(result.example.source_csv),
+                "source_row": str(result.example.source_row),
+                "error": result.error,
+            })
             continue
 
         if result.feature_names is None or result.feature_values is None:
@@ -285,7 +286,7 @@ def extract_feature_rows(
 
         processed_examples.append(result.example)
         feature_rows.append(result.feature_values)
-        label_rows.append(one_hot(result.example.label))
+        label_rows.append(result.example.labels)
 
     if expected_feature_names is None or not processed_examples:
         raise RuntimeError("No training examples were created.")
@@ -293,12 +294,9 @@ def extract_feature_rows(
     return feature_rows, label_rows, expected_feature_names, processed_examples, skipped
 
 
-def one_hot(label: str) -> list[float]:
-    return [1.0 if candidate == label else 0.0 for candidate in LABELS]
-
-
 def save_training_data(
     output_dir: Path,
+    source_data_dir: Path,
     feature_rows: list[list[float]],
     label_rows: list[list[float]],
     feature_names: list[str],
@@ -325,11 +323,17 @@ def save_training_data(
         "feature_count": int(features.shape[1]) if features.ndim == 2 else 0,
         "label_order": list(LABELS),
         "feature_names": feature_names,
+        "source_data_dir": str(source_data_dir),
         "tf_dataset": str(dataset_dir),
         "features_npy": str(output_dir / "features.npy"),
         "labels_npy": str(output_dir / "labels.npy"),
         "examples": [
-            {"wav_path": str(example.wav_path), "label": example.label}
+            {
+                "wav_path": str(example.wav_path),
+                "labels": example.labels,
+                "source_csv": str(example.source_csv),
+                "source_row": example.source_row,
+            }
             for example in examples
         ],
         "skipped": skipped,
@@ -338,25 +342,13 @@ def save_training_data(
 
 
 def transform_dataset(args: argparse.Namespace) -> None:
-    if args.max_wavs_per_emotion is not None and args.max_wavs_per_emotion < 1:
-        raise ValueError("--max-wavs-per-emotion must be at least 1 when provided.")
     if args.workers < 1:
         raise ValueError("--workers must be at least 1.")
     if not args.feature_config.is_file():
         raise FileNotFoundError(f"Feature config not found: {args.feature_config}")
 
-    import kagglehub
-
-    print(f"Downloading Kaggle dataset: {args.dataset_ref}", flush=True)
-    dataset_root = Path(kagglehub.dataset_download(args.dataset_ref))
-    print(f"Dataset available at: {dataset_root}", flush=True)
-
-    examples = collect_examples(
-        dataset_root=dataset_root,
-        max_wavs_per_emotion=args.max_wavs_per_emotion,
-        shuffle=not args.no_shuffle,
-        seed=args.seed,
-    )
+    examples = collect_examples(args.source_data_dir)
+    print(f"Read {len(examples)} manifest rows from: {args.source_data_dir}", flush=True)
     print(f"Extracting features from {len(examples)} WAV files...", flush=True)
 
     (
@@ -374,6 +366,7 @@ def transform_dataset(args: argparse.Namespace) -> None:
 
     save_training_data(
         output_dir=args.output_dir,
+        source_data_dir=args.source_data_dir,
         feature_rows=feature_rows,
         label_rows=label_rows,
         feature_names=expected_feature_names,
