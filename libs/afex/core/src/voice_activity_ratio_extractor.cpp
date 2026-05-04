@@ -12,7 +12,7 @@ namespace afex
 {
 
 FeatureResult extract_voice_activity_ratio(const AudioData& audio, const ExtractorParameters& parameters) {
-    const auto mono = downmix_mono(audio);
+    const auto& mono = mono_audio(audio);
     if (mono.empty()) {
         return complete_feature(feature_names::voice_activity_ratio, 0.0, {}, "ratio", "No samples were supplied.");
     }
@@ -33,7 +33,7 @@ FeatureResult extract_voice_activity_ratio(const AudioData& audio, const Extract
 
     auto voiced = std::size_t{0};
     auto total = std::size_t{0};
-    for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
+    for (const auto offset : cached_frame_offsets(audio, mono.size(), settings.size, settings.hop)) {
         ++total;
         const auto current_rms = frame_rms(mono, offset, settings.size);
         auto crossings = std::size_t{0};

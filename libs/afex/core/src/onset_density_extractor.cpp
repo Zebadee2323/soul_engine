@@ -25,7 +25,7 @@ FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParam
 }
 
 FeatureResult extract_onset_density(const AudioData& audio, const OnsetDensityExtractorSettings& extractor_settings) {
-    const auto mono = downmix_mono(audio);
+    const auto& mono = mono_audio(audio);
     if (mono.empty() || audio.duration_seconds() == 0.0) {
         return complete_feature(feature_names::onset_density, 0.0, {}, "onsets/s", "Onset density requires samples and duration.");
     }
@@ -40,7 +40,7 @@ FeatureResult extract_onset_density(const AudioData& audio, const OnsetDensityEx
     auto previous_rms = 0.0;
     auto first = true;
 
-    for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
+    for (const auto offset : cached_frame_offsets(audio, mono.size(), settings.size, settings.hop)) {
         const auto current_rms = frame_rms(mono, offset, settings.size);
         if (!first && current_rms >= rms_threshold && current_rms >= previous_rms * rise_threshold) {
             ++onsets;
@@ -60,7 +60,7 @@ FeatureResult extract_onset_density(const AudioData& audio, const OnsetDensityEx
     auto unit = std::string_view{"onsets/s"};
     if (extractor_settings.normalization.enabled) {
         const auto maximum = extractor_settings.normalization.maximum == 0.0 ?
-                             static_cast<double>(frame_offsets(mono.size(), settings.size, settings.hop).size()) / audio.duration_seconds() :
+                             static_cast<double>(cached_frame_offsets(audio, mono.size(), settings.size, settings.hop).size()) / audio.duration_seconds() :
                              extractor_settings.normalization.maximum;
         if (!normalization_range_valid(extractor_settings.normalization.minimum, maximum)) {
 #if AFEX_ENABLE_EXCEPTIONS

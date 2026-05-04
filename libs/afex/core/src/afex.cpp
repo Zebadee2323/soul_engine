@@ -1,6 +1,7 @@
 #include <afex/afex.hpp>
 // --------------------------------------------------------------------------------------------------------------------
 #include "extractors.hpp"
+#include "extractor_helpers.hpp"
 // --------------------------------------------------------------------------------------------------------------------
 #include <algorithm>
 #include <stdexcept>
@@ -265,6 +266,8 @@ AnalysisResult Analyzer::analyze(const AudioData& audio) const {
 
 AnalysisResult Analyzer::analyze(const AudioData& audio, const AnalyzeSettings& settings) const {
     const auto settings_scope = ActiveAnalyzeSettingsScope{settings};
+    auto workspace = AnalysisWorkspace{audio};
+    const auto workspace_scope = ActiveAnalysisWorkspaceScope{workspace};
     auto features = m_registry.extract_all(audio);
 
     return AnalysisResult{

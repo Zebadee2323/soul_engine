@@ -12,7 +12,7 @@ namespace afex
 {
 
 FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParameters& parameters) {
-    const auto mono = downmix_mono(audio);
+    const auto& mono = mono_audio(audio);
     if (mono.empty()) {
         return complete_feature(feature_names::spectral_flux, 0.0, {}, "magnitude", "No samples were supplied.");
     }
@@ -25,8 +25,8 @@ FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParam
     auto sum_flux = 0.0;
     auto flux_count = std::size_t{0};
     auto previous = std::vector<double>{};
-    for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
-        auto current = magnitude_spectrum(mono, offset, settings.size);
+    for (const auto offset : cached_frame_offsets(audio, mono.size(), settings.size, settings.hop)) {
+        auto current = cached_magnitude_spectrum(audio, offset, settings.size);
         const auto norm = std::accumulate(current.begin(), current.end(), 0.0);
         if (norm > 0.0) {
             for (auto& magnitude : current) {

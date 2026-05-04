@@ -30,7 +30,18 @@ struct PitchExtractorSettings
     double                              min_frequency_hz            = 50.0;
     double                              max_frequency_hz            = 500.0;
     double                              confidence_threshold        = 0.3;
+    double                              max_analysis_seconds        = 3.0;
+    double                              max_sample_rate_hz          = 8000.0;
     NormalizationSettings               normalization;
+};
+
+struct PitchSummary
+{
+    double                              frequency_hz                = 0.0;
+    double                              confidence                  = 0.0;
+#if !AFEX_EMBEDDED
+    std::string                         note;
+#endif
 };
 
 struct SpectralCentroidExtractorSettings
@@ -51,6 +62,7 @@ PitchExtractorSettings                  make_pitch_extractor_settings           
 SpectralCentroidExtractorSettings       make_spectral_centroid_extractor_settings  (const ExtractorParameters& parameters);
 OnsetDensityExtractorSettings           make_onset_density_extractor_settings      (const ExtractorParameters& parameters);
 
+PitchSummary   estimate_pitch                  (const AudioData& audio, const PitchExtractorSettings& settings);
 FeatureResult   extract_rms                     (const AudioData& audio, const ExtractorParameters& parameters = {});
 FeatureResult   extract_rms_variance            (const AudioData& audio, const ExtractorParameters& parameters = {});
 FeatureResult   extract_zcr                     (const AudioData& audio, const ExtractorParameters& parameters = {});

@@ -23,7 +23,7 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorP
 }
 
 FeatureResult extract_spectral_centroid(const AudioData& audio, const SpectralCentroidExtractorSettings& extractor_settings) {
-    const auto mono = downmix_mono(audio);
+    const auto& mono = mono_audio(audio);
     if (mono.empty() || audio.sample_rate_hz == 0) {
         return complete_feature(feature_names::spectral_centroid, 0.0, {}, "Hz", "Spectral centroid requires samples and a non-zero sample rate.");
     }
@@ -35,8 +35,8 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const SpectralCe
     auto values = std::vector<double>{};
     auto sum_centroid = 0.0;
     auto centroid_count = std::size_t{0};
-    for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
-        const auto magnitudes = magnitude_spectrum(mono, offset, settings.size);
+    for (const auto offset : cached_frame_offsets(audio, mono.size(), settings.size, settings.hop)) {
+        const auto& magnitudes = cached_magnitude_spectrum(audio, offset, settings.size);
         auto weighted_sum = 0.0;
         auto magnitude_sum = 0.0;
         for (auto bin = std::size_t{0}; bin < magnitudes.size(); ++bin) {
