@@ -36,14 +36,7 @@ int sign_with_threshold(float sample, double threshold) {
 
 FeatureResult extract_zcr(const AudioData& audio, const ExtractorParameters& parameters) {
     if (audio.samples.size() < 2) {
-        return FeatureResult{
-            .name = std::string{feature_names::zcr},
-            .status = FeatureStatus::Complete,
-            .value = 0.0,
-            .values = {},
-            .unit = "ratio",
-            .note = "At least two samples are needed for zero crossing rate.",
-        };
+        return complete_feature(feature_names::zcr, 0.0, {}, "ratio", "At least two samples are needed for zero crossing rate.");
     }
 
     const auto threshold = parameter_or(parameters, "threshold", 0.0);
@@ -73,18 +66,14 @@ FeatureResult extract_zcr(const AudioData& audio, const ExtractorParameters& par
     }
 
     auto note = std::string{};
+#if !AFEX_EMBEDDED
     if (threshold > 0.0) {
         note = "Samples within +/-threshold were ignored for sign changes.";
     }
+#endif
 
-    return FeatureResult{
-        .name = std::string{feature_names::zcr},
-        .status = FeatureStatus::Complete,
-        .value = comparable_steps == 0 ? 0.0 : static_cast<double>(crossings) / static_cast<double>(comparable_steps),
-        .values = {},
-        .unit = "ratio",
-        .note = note,
-    };
+    return complete_feature(feature_names::zcr, comparable_steps == 0 ? 0.0 : static_cast<double>(crossings) / static_cast<double>(comparable_steps),
+                            {}, "ratio", note);
 }
 
 }

@@ -206,17 +206,29 @@ struct PitchSummary
 {
     double                           frequency_hz                = 0.0;
     double                           confidence                  = 0.0;
+#if !AFEX_EMBEDDED
     std::string                      note;
+#endif
 };
+
+PitchSummary pitch_summary(double frequency_hz, double confidence, std::string_view note) {
+    return PitchSummary{
+        .frequency_hz = frequency_hz,
+        .confidence = confidence,
+#if !AFEX_EMBEDDED
+        .note = std::string{note},
+#endif
+    };
+}
 
 PitchSummary estimate_pitch(const AudioData& audio, const ExtractorParameters& parameters) {
     if (audio.sample_rate_hz == 0) {
-        return PitchSummary{.note = "Pitch requires a non-zero sample rate."};
+        return pitch_summary(0.0, 0.0, "Pitch requires a non-zero sample rate.");
     }
 
     const auto mono = downmix_mono(audio);
     if (mono.size() < 3) {
-        return PitchSummary{.note = "At least three frames are needed for pitch estimation."};
+        return pitch_summary(0.0, 0.0, "At least three frames are needed for pitch estimation.");
     }
 
     const auto min_frequency_hz = parameter_or(parameters, "min_frequency_hz", 50.0);
@@ -226,13 +238,13 @@ PitchSummary estimate_pitch(const AudioData& audio, const ExtractorParameters& p
 #if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("pitch min_frequency_hz and max_frequency_hz must be positive and increasing.");
 #endif
-        return PitchSummary{.note = "pitch min_frequency_hz and max_frequency_hz must be positive and increasing."};
+        return pitch_summary(0.0, 0.0, "pitch min_frequency_hz and max_frequency_hz must be positive and increasing.");
     }
     if (confidence_threshold < 0.0 || confidence_threshold > 1.0) {
 #if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("pitch confidence_threshold must be between 0 and 1.");
 #endif
-        return PitchSummary{.note = "pitch confidence_threshold must be between 0 and 1."};
+        return pitch_summary(0.0, 0.0, "pitch confidence_threshold must be between 0 and 1.");
     }
 
     auto min_lag = static_cast<std::size_t>(std::floor(static_cast<double>(audio.sample_rate_hz) / max_frequency_hz));
@@ -240,7 +252,7 @@ PitchSummary estimate_pitch(const AudioData& audio, const ExtractorParameters& p
     min_lag = std::max<std::size_t>(1, min_lag);
     max_lag = std::min<std::size_t>(max_lag, mono.size() - 1);
     if (min_lag > max_lag) {
-        return PitchSummary{.note = "Audio is too short for the configured pitch frequency range."};
+        return pitch_summary(0.0, 0.0, "Audio is too short for the configured pitch frequency range.");
     }
 
     auto best_lag = min_lag;
@@ -265,46 +277,37 @@ PitchSummary estimate_pitch(const AudioData& audio, const ExtractorParameters& p
 
     const auto confidence = std::clamp(best_correlation, 0.0, 1.0);
     if (confidence < confidence_threshold) {
-        return PitchSummary{.frequency_hz = 0.0, .confidence = confidence, .note = "No pitch exceeded confidence_threshold."};
+        return pitch_summary(0.0, confidence, "No pitch exceeded confidence_threshold.");
     }
 
-    return PitchSummary{
-        .frequency_hz = static_cast<double>(audio.sample_rate_hz) / static_cast<double>(best_lag),
-        .confidence = confidence,
-        .note = "Autocorrelation estimate over downmixed mono audio.",
-    };
+    return pitch_summary(static_cast<double>(audio.sample_rate_hz) / static_cast<double>(best_lag), confidence,
+                         "Autocorrelation estimate over downmixed mono audio.");
 }
 
 }
 
 FeatureResult extract_pitch(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto pitch = estimate_pitch(audio, parameters);
-    return FeatureResult{
-        .name = std::string{feature_names::pitch},
-        .status = FeatureStatus::Complete,
-        .value = pitch.frequency_hz,
-        .values = {},
-        .unit = "Hz",
-        .note = pitch.note,
-    };
+#if AFEX_EMBEDDED
+    return complete_feature(feature_names::pitch, pitch.frequency_hz, {}, "Hz");
+#else
+    return complete_feature(feature_names::pitch, pitch.frequency_hz, {}, "Hz", pitch.note);
+#endif
 }
 
 FeatureResult extract_pitch_confidence(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto pitch = estimate_pitch(audio, parameters);
-    return FeatureResult{
-        .name = std::string{feature_names::pitch_confidence},
-        .status = FeatureStatus::Complete,
-        .value = pitch.confidence,
-        .values = {},
-        .unit = "ratio",
-        .note = pitch.note,
-    };
+#if AFEX_EMBEDDED
+    return complete_feature(feature_names::pitch_confidence, pitch.confidence, {}, "ratio");
+#else
+    return complete_feature(feature_names::pitch_confidence, pitch.confidence, {}, "ratio", pitch.note);
+#endif
 }
 
 FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto mono = downmix_mono(audio);
     if (mono.empty() || audio.sample_rate_hz == 0) {
-        return FeatureResult{.name = std::string{feature_names::spectral_centroid}, .value = 0.0, .unit = "Hz", .note = "Spectral centroid requires samples and a non-zero sample rate."};
+        return complete_feature(feature_names::spectral_centroid, 0.0, {}, "Hz", "Spectral centroid requires samples and a non-zero sample rate.");
     }
 
     const auto settings = frame_settings(audio, parameters, 2048, 512);
@@ -332,13 +335,13 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorP
     }
 
     const auto value = centroid_count == 0 ? 0.0 : sum_centroid / static_cast<double>(centroid_count);
-    return FeatureResult{.name = std::string{feature_names::spectral_centroid}, .value = value, .values = std::move(values), .unit = "Hz", .note = "Mean spectral centroid across Hann-windowed frames."};
+    return complete_feature(feature_names::spectral_centroid, value, std::move(values), "Hz", "Mean spectral centroid across Hann-windowed frames.");
 }
 
 FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto mono = downmix_mono(audio);
     if (mono.empty()) {
-        return FeatureResult{.name = std::string{feature_names::spectral_flux}, .value = 0.0, .unit = "magnitude", .note = "No samples were supplied."};
+        return complete_feature(feature_names::spectral_flux, 0.0, {}, "magnitude", "No samples were supplied.");
     }
 
     const auto settings = frame_settings(audio, parameters, 2048, 512);
@@ -377,13 +380,13 @@ FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParam
     }
 
     const auto value = flux_count == 0 ? 0.0 : sum_flux / static_cast<double>(flux_count);
-    return FeatureResult{.name = std::string{feature_names::spectral_flux}, .value = value, .values = std::move(values), .unit = "ratio", .note = "Mean positive spectral change between normalized frames."};
+    return complete_feature(feature_names::spectral_flux, value, std::move(values), "ratio", "Mean positive spectral change between normalized frames.");
 }
 
 FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto mono = downmix_mono(audio);
     if (mono.empty() || audio.duration_seconds() == 0.0) {
-        return FeatureResult{.name = std::string{feature_names::onset_density}, .value = 0.0, .unit = "onsets/s", .note = "Onset density requires samples and duration."};
+        return complete_feature(feature_names::onset_density, 0.0, {}, "onsets/s", "Onset density requires samples and duration.");
     }
 
     const auto settings = frame_settings(audio, parameters, 1024, 512);
@@ -405,13 +408,14 @@ FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParam
         first = false;
     }
 
-    return FeatureResult{.name = std::string{feature_names::onset_density}, .value = static_cast<double>(onsets) / audio.duration_seconds(), .values = {static_cast<double>(onsets)}, .unit = "onsets/s", .note = "Energy-rise onset estimate; values contains the raw onset count."};
+    return complete_feature(feature_names::onset_density, static_cast<double>(onsets) / audio.duration_seconds(), {static_cast<double>(onsets)}, "onsets/s",
+                            "Energy-rise onset estimate; values contains the raw onset count.");
 }
 
 FeatureResult extract_voice_activity_ratio(const AudioData& audio, const ExtractorParameters& parameters) {
     const auto mono = downmix_mono(audio);
     if (mono.empty()) {
-        return FeatureResult{.name = std::string{feature_names::voice_activity_ratio}, .value = 0.0, .unit = "ratio", .note = "No samples were supplied."};
+        return complete_feature(feature_names::voice_activity_ratio, 0.0, {}, "ratio", "No samples were supplied.");
     }
 
     const auto settings = frame_settings(audio, parameters, 1024, 512);
@@ -447,7 +451,9 @@ FeatureResult extract_voice_activity_ratio(const AudioData& audio, const Extract
         }
     }
 
-    return FeatureResult{.name = std::string{feature_names::voice_activity_ratio}, .value = total == 0 ? 0.0 : static_cast<double>(voiced) / static_cast<double>(total), .values = {static_cast<double>(voiced), static_cast<double>(total)}, .unit = "ratio", .note = "Simple RMS/ZCR voice activity estimate; values contains voiced frame count and total frame count."};
+    return complete_feature(feature_names::voice_activity_ratio, total == 0 ? 0.0 : static_cast<double>(voiced) / static_cast<double>(total),
+                            {static_cast<double>(voiced), static_cast<double>(total)}, "ratio",
+                            "Simple RMS/ZCR voice activity estimate; values contains voiced frame count and total frame count.");
 }
 
 }

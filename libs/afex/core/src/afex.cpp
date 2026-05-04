@@ -33,14 +33,34 @@ private:
 
 };
 
-FeatureResult failed_feature_for_extractor(std::string_view name, std::string note) {
+FeatureResult failed_feature_for_extractor(std::string_view name, std::string_view note) {
     return FeatureResult{
         .name = std::string{name},
         .status = FeatureStatus::Failed,
         .value = std::nullopt,
         .values = {},
         .unit = {},
-        .note = std::move(note),
+#if AFEX_EMBEDDED
+        .note = {},
+#else
+        .note = std::string{note},
+#endif
+    };
+}
+
+FeatureResult complete_feature_for_extractor(std::string_view name, double value, std::vector<double> values, std::string_view unit,
+                                             std::string_view note) {
+    return FeatureResult{
+        .name = std::string{name},
+        .status = FeatureStatus::Complete,
+        .value = value,
+        .values = std::move(values),
+#if AFEX_EMBEDDED
+        .note = {},
+#else
+        .unit = std::string{unit},
+        .note = std::string{note},
+#endif
     };
 }
 
@@ -105,8 +125,12 @@ const AnalyzeSettings& current_analyze_settings() {
     return *active_analyze_settings;
 }
 
-FeatureResult failed_feature(std::string_view name, std::string note) {
-    return failed_feature_for_extractor(name, std::move(note));
+FeatureResult complete_feature(std::string_view name, double value, std::vector<double> values, std::string_view unit, std::string_view note) {
+    return complete_feature_for_extractor(name, value, std::move(values), unit, note);
+}
+
+FeatureResult failed_feature(std::string_view name, std::string_view note) {
+    return failed_feature_for_extractor(name, note);
 }
 
 CallbackFeatureExtractor::CallbackFeatureExtractor(std::string name, FeatureExtractorFn extract_fn) :
@@ -286,7 +310,6 @@ std::vector<std::string> builtin_feature_names() {
         std::string{feature_names::zcr},
     };
 
-#if AFEX_ENABLE_SPECTRAL_EXTRACTORS
     names.insert(
         names.end(),
         {
@@ -298,7 +321,6 @@ std::vector<std::string> builtin_feature_names() {
         std::string{feature_names::voice_activity_ratio},
         }
     );
-#endif
 
     return names;
 }
@@ -340,18 +362,22 @@ AnalysisConfig load_analysis_config_yaml(std::string_view config_file_path) {
 Status load_audio_file(std::string_view audio_file_path, LoadedAudioData& audio) {
     static_cast<void>(audio_file_path);
     audio = {};
-    return Status{.error = AfexError::UnsupportedAudioFile, .message = "Audio file loading is not part of the embedded afex core."};
+    return Status{.error = AfexError::UnsupportedAudioFile};
 }
 
 Status load_analysis_config_yaml(std::string_view config_file_path, AnalysisConfig& config) {
     static_cast<void>(config_file_path);
     config = {};
-    return Status{.error = AfexError::ParseFailed, .message = "YAML config loading is not part of the embedded afex core."};
+    return Status{.error = AfexError::ParseFailed};
 }
 #endif
 
 std::string placeholder_method() {
+#if AFEX_EMBEDDED
+    return {};
+#else
     return "afex placeholder method executed";
+#endif
 }
 
 }

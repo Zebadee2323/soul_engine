@@ -2,19 +2,14 @@ set(afex_core_sources
   src/afex.cpp
   src/builtin_extractors.cpp
   src/rms_extractor.cpp
+  src/spectral_voice_extractors.cpp
   src/zcr_extractor.cpp
 )
 
 if(IDF_TARGET)
-  set(afex_enable_spectral_extractors_default OFF)
-else()
-  set(afex_enable_spectral_extractors_default ON)
-endif()
-
-option(AFEX_ENABLE_SPECTRAL_EXTRACTORS "Enable heavier spectral, pitch, onset, and voice extractors." ${afex_enable_spectral_extractors_default})
-
-if(AFEX_ENABLE_SPECTRAL_EXTRACTORS)
-  list(APPEND afex_core_sources src/spectral_voice_extractors.cpp)
+  set(AFEX_EMBEDDED ON)
+elseif(NOT DEFINED AFEX_EMBEDDED)
+  option(AFEX_EMBEDDED "Build the minimal embedded afex core." OFF)
 endif()
 
 if(IDF_TARGET)
@@ -27,11 +22,13 @@ if(IDF_TARGET)
   target_compile_definitions(${COMPONENT_LIB}
     PUBLIC
       AFEX_ENABLE_EXCEPTIONS=0
-      AFEX_ENABLE_SPECTRAL_EXTRACTORS=$<BOOL:${AFEX_ENABLE_SPECTRAL_EXTRACTORS}>
       AFEX_EMBEDDED=1
   )
 else()
   option(AFEX_ENABLE_EXCEPTIONS "Enable throwing compatibility wrappers in afex host APIs." ON)
+  if(AFEX_EMBEDDED)
+    set(AFEX_ENABLE_EXCEPTIONS OFF CACHE BOOL "Enable throwing compatibility wrappers in afex host APIs." FORCE)
+  endif()
 
   add_library(afex
     ${afex_core_sources}
@@ -47,6 +44,6 @@ else()
   target_compile_definitions(afex
     PUBLIC
       AFEX_ENABLE_EXCEPTIONS=$<BOOL:${AFEX_ENABLE_EXCEPTIONS}>
-      AFEX_ENABLE_SPECTRAL_EXTRACTORS=$<BOOL:${AFEX_ENABLE_SPECTRAL_EXTRACTORS}>
+      AFEX_EMBEDDED=$<BOOL:${AFEX_EMBEDDED}>
   )
 endif()

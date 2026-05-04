@@ -48,14 +48,7 @@ double sample_or_silence(float sample, double noise_floor) {
 
 FeatureResult extract_rms(const AudioData& audio, const ExtractorParameters& parameters) {
     if (audio.samples.empty()) {
-        return FeatureResult{
-            .name = std::string{feature_names::rms},
-            .status = FeatureStatus::Complete,
-            .value = 0.0,
-            .values = {},
-            .unit = "amplitude",
-            .note = "No samples were supplied.",
-        };
+        return complete_feature(feature_names::rms, 0.0, {}, "amplitude", "No samples were supplied.");
     }
 
     const auto noise_floor = parameter_or(parameters, "noise_floor", 0.0);
@@ -75,30 +68,18 @@ FeatureResult extract_rms(const AudioData& audio, const ExtractorParameters& par
     );
 
     auto note = std::string{};
+#if !AFEX_EMBEDDED
     if (noise_floor > 0.0) {
         note = "Samples below noise_floor were treated as silence.";
     }
+#endif
 
-    return FeatureResult{
-        .name = std::string{feature_names::rms},
-        .status = FeatureStatus::Complete,
-        .value = std::sqrt(square_sum / static_cast<double>(audio.samples.size())),
-        .values = {},
-        .unit = "amplitude",
-        .note = note,
-    };
+    return complete_feature(feature_names::rms, std::sqrt(square_sum / static_cast<double>(audio.samples.size())), {}, "amplitude", note);
 }
 
 FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParameters& parameters) {
     if (audio.samples.empty()) {
-        return FeatureResult{
-            .name = std::string{feature_names::rms_variance},
-            .status = FeatureStatus::Complete,
-            .value = 0.0,
-            .values = {},
-            .unit = "amplitude^2",
-            .note = "No samples were supplied.",
-        };
+        return complete_feature(feature_names::rms_variance, 0.0, {}, "amplitude^2", "No samples were supplied.");
     }
 
     const auto noise_floor = parameter_or(parameters, "noise_floor", 0.0);
@@ -143,19 +124,15 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
 
     const auto variance = frame_rms_squared_delta_sum / static_cast<double>(frame_rms_count);
 
-    auto note = std::string{"Variance of frame RMS values."};
+    auto note = std::string{};
+#if !AFEX_EMBEDDED
+    note = "Variance of frame RMS values.";
     if (noise_floor > 0.0) {
         note += " Samples below noise_floor were treated as silence.";
     }
+#endif
 
-    return FeatureResult{
-        .name = std::string{feature_names::rms_variance},
-        .status = FeatureStatus::Complete,
-        .value = variance,
-        .values = std::move(frame_rms_values),
-        .unit = "amplitude^2",
-        .note = note,
-    };
+    return complete_feature(feature_names::rms_variance, variance, std::move(frame_rms_values), "amplitude^2", note);
 }
 
 }

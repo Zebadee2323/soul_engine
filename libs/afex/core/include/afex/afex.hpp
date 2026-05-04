@@ -15,12 +15,13 @@
 #    define AFEX_ENABLE_EXCEPTIONS 0
 #endif
 
-#ifndef AFEX_ENABLE_SPECTRAL_EXTRACTORS
-#    define AFEX_ENABLE_SPECTRAL_EXTRACTORS 1
-#endif
-
 #ifndef AFEX_EMBEDDED
 #    define AFEX_EMBEDDED 0
+#endif
+
+#if AFEX_EMBEDDED
+#    undef AFEX_ENABLE_EXCEPTIONS
+#    define AFEX_ENABLE_EXCEPTIONS 0
 #endif
 
 namespace afex

@@ -56,7 +56,6 @@ FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
         return extract_zcr(audio, m_config.parameters);
     }
 
-#if AFEX_ENABLE_SPECTRAL_EXTRACTORS
     if (m_config.name == feature_names::pitch) {
         return extract_pitch(audio, m_config.parameters);
     }
@@ -80,9 +79,12 @@ FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
     if (m_config.name == feature_names::voice_activity_ratio) {
         return extract_voice_activity_ratio(audio, m_config.parameters);
     }
-#endif
 
+#if AFEX_EMBEDDED
+    return failed_feature(m_config.name, {});
+#else
     return failed_feature(m_config.name, "Unknown afex extractor: " + m_config.name);
+#endif
 }
 
 }
