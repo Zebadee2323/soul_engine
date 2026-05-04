@@ -73,30 +73,15 @@ struct AudioData
     double                              duration_seconds            () const;
 };
 
-struct LoadedAudioData
-{
-    std::vector<float>                  samples;
-    std::uint32_t                       sample_rate_hz              = 0;
-    std::uint32_t                       channel_count               = 1;
-
-    AudioData                           view                        () const;
-};
-
 struct ExtractorConfig
 {
     std::string                         name;
     ExtractorParameters                 parameters;
 };
 
-struct AnalysisConfig
-{
-    std::string                         audio_file_path;
-    std::vector<ExtractorConfig>        extractors;
-};
-
 struct AnalyzeSettings
 {
-    bool                                keep_intermediate_values    = false;
+    bool                                include_feature_values       = false;
     std::size_t                         max_frame_size              = 2048;
 };
 
@@ -187,22 +172,15 @@ public:
     std::vector<std::string>            registered_extractors       () const;
     AnalysisResult                      analyze                     (const AudioData& audio) const;
     AnalysisResult                      analyze                     (const AudioData& audio, const AnalyzeSettings& settings) const;
-    AnalysisResult                      analyze_file                (std::string_view audio_file_path) const;
 
 private:
     ExtractorRegistry                   m_registry;
 
 };
 
-LoadedAudioData                         load_audio_file             (std::string_view audio_file_path);
-AnalysisConfig                          load_analysis_config_yaml   (std::string_view config_file_path);
-Status                                  load_audio_file             (std::string_view audio_file_path, LoadedAudioData& audio);
-Status                                  load_analysis_config_yaml   (std::string_view config_file_path, AnalysisConfig& config);
 std::vector<std::string>                builtin_feature_names       ();
 Analyzer                                create_analyzer             (const std::vector<ExtractorConfig>& extractor_configs);
 Analyzer                                create_default_analyzer     ();
-AnalysisResult                          analyze_file                (std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs);
-AnalysisResult                          analyze_file                (const AnalysisConfig& config);
 AnalysisResult                          analyze                     (const AudioData& audio, const std::vector<ExtractorConfig>& extractor_configs,
                                                                        const AnalyzeSettings& settings = {});
 std::string                             placeholder_method          ();

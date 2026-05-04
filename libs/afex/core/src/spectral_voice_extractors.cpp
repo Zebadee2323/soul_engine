@@ -329,7 +329,7 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorP
         const auto centroid = magnitude_sum == 0.0 ? 0.0 : weighted_sum / magnitude_sum;
         sum_centroid += centroid;
         ++centroid_count;
-        if (current_analyze_settings().keep_intermediate_values) {
+        if (current_analyze_settings().include_feature_values) {
             values.push_back(centroid);
         }
     }
@@ -372,7 +372,7 @@ FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParam
             const auto flux_value = std::sqrt(flux);
             sum_flux += flux_value;
             ++flux_count;
-            if (current_analyze_settings().keep_intermediate_values) {
+            if (current_analyze_settings().include_feature_values) {
                 values.push_back(flux_value);
             }
         }
@@ -408,8 +408,15 @@ FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParam
         first = false;
     }
 
-    return complete_feature(feature_names::onset_density, static_cast<double>(onsets) / audio.duration_seconds(), {static_cast<double>(onsets)}, "onsets/s",
-                            "Energy-rise onset estimate; values contains the raw onset count.");
+    auto values = std::vector<double>{};
+    auto note = std::string{"Energy-rise onset estimate."};
+    if (current_analyze_settings().include_feature_values) {
+        values.push_back(static_cast<double>(onsets));
+        note += " Values field contains the raw onset count.";
+    }
+
+    return complete_feature(feature_names::onset_density, static_cast<double>(onsets) / audio.duration_seconds(), std::move(values), "onsets/s",
+                            note);
 }
 
 FeatureResult extract_voice_activity_ratio(const AudioData& audio, const ExtractorParameters& parameters) {
@@ -451,9 +458,15 @@ FeatureResult extract_voice_activity_ratio(const AudioData& audio, const Extract
         }
     }
 
+    auto values = std::vector<double>{};
+    auto note = std::string{"Simple RMS/ZCR voice activity estimate."};
+    if (current_analyze_settings().include_feature_values) {
+        values = {static_cast<double>(voiced), static_cast<double>(total)};
+        note += " Values field contains voiced frame count and total frame count.";
+    }
+
     return complete_feature(feature_names::voice_activity_ratio, total == 0 ? 0.0 : static_cast<double>(voiced) / static_cast<double>(total),
-                            {static_cast<double>(voiced), static_cast<double>(total)}, "ratio",
-                            "Simple RMS/ZCR voice activity estimate; values contains voiced frame count and total frame count.");
+                            std::move(values), "ratio", note);
 }
 
 }

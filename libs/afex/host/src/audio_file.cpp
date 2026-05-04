@@ -1,4 +1,4 @@
-#include <afex/afex.hpp>
+#include <afex/host.hpp>
 // --------------------------------------------------------------------------------------------------------------------
 #include <algorithm>
 #include <array>
@@ -95,6 +95,14 @@ float float_sample_to_float(const std::vector<unsigned char>& bytes, std::size_t
     return value;
 }
 
+}
+
+AudioData LoadedAudioData::view() const {
+    return AudioData{
+        .samples = samples,
+        .sample_rate_hz = sample_rate_hz,
+        .channel_count = channel_count,
+    };
 }
 
 LoadedAudioData load_audio_file(std::string_view audio_file_path) {

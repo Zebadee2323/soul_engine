@@ -92,9 +92,9 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
 
     const auto frame_size = positive_size_parameter(parameters, "frame_size", 1024);
     const auto hop_size = positive_size_parameter(parameters, "hop_size", 512);
-    const auto keep_intermediate_values = current_analyze_settings().keep_intermediate_values;
+    const auto include_feature_values = current_analyze_settings().include_feature_values;
     auto frame_rms_values = std::vector<double>{};
-    if (keep_intermediate_values) {
+    if (include_feature_values) {
         frame_rms_values.reserve((audio.samples.size() + hop_size - 1) / hop_size);
     }
 
@@ -114,7 +114,7 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
         const auto delta = frame_rms - frame_rms_mean;
         frame_rms_mean += delta / static_cast<double>(frame_rms_count);
         frame_rms_squared_delta_sum += delta * (frame_rms - frame_rms_mean);
-        if (keep_intermediate_values) {
+        if (include_feature_values) {
             frame_rms_values.push_back(frame_rms);
         }
         if (end == audio.samples.size()) {

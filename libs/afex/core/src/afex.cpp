@@ -90,14 +90,6 @@ double AudioData::duration_seconds() const {
     return static_cast<double>(frame_count()) / static_cast<double>(sample_rate_hz);
 }
 
-AudioData LoadedAudioData::view() const {
-    return AudioData{
-        .samples = samples,
-        .sample_rate_hz = sample_rate_hz,
-        .channel_count = channel_count,
-    };
-}
-
 const FeatureResult* AnalysisResult::find_feature(std::string_view name) const {
     const auto found = std::find_if(features.begin(), features.end(), [name](const FeatureResult& feature) {
         return feature.name == name;
@@ -126,6 +118,10 @@ const AnalyzeSettings& current_analyze_settings() {
 }
 
 FeatureResult complete_feature(std::string_view name, double value, std::vector<double> values, std::string_view unit, std::string_view note) {
+    if (!current_analyze_settings().include_feature_values) {
+        values.clear();
+    }
+
     return complete_feature_for_extractor(name, value, std::move(values), unit, note);
 }
 
@@ -281,11 +277,6 @@ AnalysisResult Analyzer::analyze(const AudioData& audio, const AnalyzeSettings& 
     };
 }
 
-AnalysisResult Analyzer::analyze_file(std::string_view audio_file_path) const {
-    const auto audio = load_audio_file(audio_file_path);
-    return analyze(audio.view());
-}
-
 Analyzer create_analyzer(const std::vector<ExtractorConfig>& extractor_configs) {
     auto analyzer = Analyzer{};
     if (extractor_configs.empty()) {
@@ -325,52 +316,9 @@ std::vector<std::string> builtin_feature_names() {
     return names;
 }
 
-AnalysisResult analyze_file(std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs) {
-    return create_analyzer(extractor_configs).analyze_file(audio_file_path);
-}
-
-AnalysisResult analyze_file(const AnalysisConfig& config) {
-    if (config.audio_file_path.empty()) {
-#if AFEX_ENABLE_EXCEPTIONS
-        throw std::invalid_argument("Analysis config must include an audio_file path or receive one from the caller.");
-#endif
-        return AnalysisResult{
-            .features = {
-                failed_feature_for_extractor("analysis", "Analysis config must include an audio_file path or receive one from the caller."),
-            },
-        };
-    }
-
-    return analyze_file(config.audio_file_path, config.extractors);
-}
-
 AnalysisResult analyze(const AudioData& audio, const std::vector<ExtractorConfig>& extractor_configs, const AnalyzeSettings& settings) {
     return create_analyzer(extractor_configs).analyze(audio, settings);
 }
-
-#if AFEX_EMBEDDED
-LoadedAudioData load_audio_file(std::string_view audio_file_path) {
-    static_cast<void>(audio_file_path);
-    return {};
-}
-
-AnalysisConfig load_analysis_config_yaml(std::string_view config_file_path) {
-    static_cast<void>(config_file_path);
-    return {};
-}
-
-Status load_audio_file(std::string_view audio_file_path, LoadedAudioData& audio) {
-    static_cast<void>(audio_file_path);
-    audio = {};
-    return Status{.error = AfexError::UnsupportedAudioFile};
-}
-
-Status load_analysis_config_yaml(std::string_view config_file_path, AnalysisConfig& config) {
-    static_cast<void>(config_file_path);
-    config = {};
-    return Status{.error = AfexError::ParseFailed};
-}
-#endif
 
 std::string placeholder_method() {
 #if AFEX_EMBEDDED
