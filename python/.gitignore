@@ -81,3 +81,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Project Python libraries
+!/lib/
+!/lib/pyafex/
+!/lib/pyafex/**

@@ -6,3 +6,6 @@ add_subdirectory(libs/mlp)
 add_subdirectory(libs/afex)
 add_subdirectory(apps/mlp-xor)
 add_subdirectory(apps/afex-cli)
+
+add_subdirectory(python/lib/pyafex)
+add_subdirectory(python/apps/pyafex-cli)
