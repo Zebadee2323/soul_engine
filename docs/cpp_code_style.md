@@ -98,18 +98,28 @@ Guidelines:
 
 ## Function Declarations
 
-Headers in `libs/mlp` align return types, names, and parameter lists into columns. Follow that style for library headers:
+Headers align types, names, and call/initializer suffixes into columns. Use one consistent column grid across a header where practical, including public methods, private members, free functions, and constants.
+
+Choose the smallest column widths that fit the declarations being aligned:
+
+- The name column starts at the next 4-space boundary after the longest type/specifier in the aligned file or declaration block.
+- The call/initializer column starts at the next 4-space boundary after the longest declaration name in that same grid.
+- Do not add arbitrary extra padding once those minimum 4-space-aligned widths are met.
+- Ignore excessively long type names when choosing the shared type-column width; let those declarations use a single space before the name instead of forcing every other declaration to shift right.
+- For plain data members without an initializer, keep the semicolon directly after the name; do not pad out to the initializer column.
+- Keep the same relative columns at each indentation level. Class members will be indented, but their type/name/suffix spacing should use the same grid as the rest of the header.
 
 ```cpp
-float                       mse                     (const mlp::VectorXf& prediction, const mlp::VectorXf& target);
-mlp::VectorXf               mse_derivative          (const mlp::VectorXf& prediction, const mlp::VectorXf& target);
+float                                          mse                        (const mlp::VectorXf& prediction, const mlp::VectorXf& target);
+mlp::VectorXf                                  mse_derivative             (const mlp::VectorXf& prediction, const mlp::VectorXf& target);
+std::vector<std::unique_ptr<FeatureExtractor>> m_extractors;
 ```
 
 For long declarations, wrap parameters onto the next line and align continuation indentation:
 
 ```cpp
-static void                 train                   (Mlp& mlp, const std::vector<Sample>& dataset, size_t epochs,
-                                                        float learning_rate);
+static void                                    train                      (Mlp& mlp, const std::vector<Sample>& dataset, size_t epochs,
+                                                                             float learning_rate);
 ```
 
 ## Function Definitions
