@@ -11,8 +11,38 @@
 #include <unordered_map>
 #include <vector>
 
+#ifndef AFEX_ENABLE_EXCEPTIONS
+#    define AFEX_ENABLE_EXCEPTIONS 0
+#endif
+
+#ifndef AFEX_ENABLE_SPECTRAL_EXTRACTORS
+#    define AFEX_ENABLE_SPECTRAL_EXTRACTORS 1
+#endif
+
+#ifndef AFEX_EMBEDDED
+#    define AFEX_EMBEDDED 0
+#endif
+
 namespace afex
 {
+
+enum class AfexError
+{
+    None,
+    InvalidArgument,
+    UnknownExtractor,
+    FileOpenFailed,
+    UnsupportedAudioFile,
+    ParseFailed,
+};
+
+struct Status
+{
+    AfexError                           error                       = AfexError::None;
+    std::string                         message;
+
+    bool                                ok                          () const;
+};
 
 namespace feature_names
 {
@@ -63,6 +93,12 @@ struct AnalysisConfig
     std::vector<ExtractorConfig>        extractors;
 };
 
+struct AnalyzeSettings
+{
+    bool                                keep_intermediate_values     = true;
+    std::size_t                         max_frame_size              = 2048;
+};
+
 enum class FeatureStatus
 {
     Complete,
@@ -89,6 +125,7 @@ struct AnalysisResult
     std::vector<FeatureResult>          features;
 
     const FeatureResult*                find_feature                (std::string_view name) const;
+    bool                                ok                          () const;
 };
 
 class FeatureExtractor
@@ -148,6 +185,7 @@ public:
     void                                configure_extractors        (const std::vector<ExtractorConfig>& configs);
     std::vector<std::string>            registered_extractors       () const;
     AnalysisResult                      analyze                     (const AudioData& audio) const;
+    AnalysisResult                      analyze                     (const AudioData& audio, const AnalyzeSettings& settings) const;
     AnalysisResult                      analyze_file                (std::string_view audio_file_path) const;
 
 private:
@@ -157,11 +195,15 @@ private:
 
 LoadedAudioData                         load_audio_file             (std::string_view audio_file_path);
 AnalysisConfig                          load_analysis_config_yaml   (std::string_view config_file_path);
+Status                                  load_audio_file             (std::string_view audio_file_path, LoadedAudioData& audio);
+Status                                  load_analysis_config_yaml   (std::string_view config_file_path, AnalysisConfig& config);
 std::vector<std::string>                builtin_feature_names       ();
 Analyzer                                create_analyzer             (const std::vector<ExtractorConfig>& extractor_configs);
 Analyzer                                create_default_analyzer     ();
 AnalysisResult                          analyze_file                (std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs);
 AnalysisResult                          analyze_file                (const AnalysisConfig& config);
+AnalysisResult                          analyze                     (const AudioData& audio, const std::vector<ExtractorConfig>& extractor_configs,
+                                                                       const AnalyzeSettings& settings = {});
 std::string                             placeholder_method          ();
 
 }

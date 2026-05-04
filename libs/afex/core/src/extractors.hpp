@@ -5,6 +5,9 @@
 namespace afex
 {
 
+const AnalyzeSettings& current_analyze_settings     ();
+FeatureResult          failed_feature               (std::string_view name, std::string note);
+
 FeatureResult   extract_rms                     (const AudioData& audio, const ExtractorParameters& parameters = {});
 FeatureResult   extract_rms_variance            (const AudioData& audio, const ExtractorParameters& parameters = {});
 FeatureResult   extract_zcr                     (const AudioData& audio, const ExtractorParameters& parameters = {});

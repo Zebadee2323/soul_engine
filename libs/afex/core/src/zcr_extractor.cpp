@@ -48,7 +48,10 @@ FeatureResult extract_zcr(const AudioData& audio, const ExtractorParameters& par
 
     const auto threshold = parameter_or(parameters, "threshold", 0.0);
     if (threshold < 0.0) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("zcr.threshold must be greater than or equal to 0.");
+#endif
+        return failed_feature(feature_names::zcr, "zcr.threshold must be greater than or equal to 0.");
     }
 
     auto crossings = std::size_t{0};

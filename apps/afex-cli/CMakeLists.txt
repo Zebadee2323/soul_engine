@@ -7,4 +7,4 @@ add_executable(afex_cli
 )
 
 target_compile_features(afex_cli PRIVATE cxx_std_20)
-target_link_libraries(afex_cli PRIVATE afex)
+target_link_libraries(afex_cli PRIVATE afex_host)

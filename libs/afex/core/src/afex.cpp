@@ -9,6 +9,47 @@
 namespace afex
 {
 
+namespace
+{
+
+thread_local const AnalyzeSettings* active_analyze_settings = nullptr;
+
+class ActiveAnalyzeSettingsScope
+{
+
+public:
+    explicit ActiveAnalyzeSettingsScope(const AnalyzeSettings& settings) :
+        m_previous              (active_analyze_settings)
+    {
+        active_analyze_settings = &settings;
+    }
+
+    ~ActiveAnalyzeSettingsScope() {
+        active_analyze_settings = m_previous;
+    }
+
+private:
+    const AnalyzeSettings*      m_previous;
+
+};
+
+FeatureResult failed_feature_for_extractor(std::string_view name, std::string note) {
+    return FeatureResult{
+        .name = std::string{name},
+        .status = FeatureStatus::Failed,
+        .value = std::nullopt,
+        .values = {},
+        .unit = {},
+        .note = std::move(note),
+    };
+}
+
+}
+
+bool Status::ok() const {
+    return error == AfexError::None;
+}
+
 bool AudioData::empty() const {
     return samples.empty();
 }
@@ -49,16 +90,39 @@ const FeatureResult* AnalysisResult::find_feature(std::string_view name) const {
     return &(*found);
 }
 
+bool AnalysisResult::ok() const {
+    return std::all_of(features.begin(), features.end(), [](const FeatureResult& feature) {
+        return feature.status == FeatureStatus::Complete;
+    });
+}
+
+const AnalyzeSettings& current_analyze_settings() {
+    static const auto defaults = AnalyzeSettings{};
+    if (active_analyze_settings == nullptr) {
+        return defaults;
+    }
+
+    return *active_analyze_settings;
+}
+
+FeatureResult failed_feature(std::string_view name, std::string note) {
+    return failed_feature_for_extractor(name, std::move(note));
+}
+
 CallbackFeatureExtractor::CallbackFeatureExtractor(std::string name, FeatureExtractorFn extract_fn) :
     m_name                  (std::move(name)),
     m_extract_fn            (std::move(extract_fn))
 {
     if (m_name.empty()) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Feature extractor name cannot be empty.");
+#endif
     }
 
     if (!m_extract_fn) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Feature extractor callback cannot be empty.");
+#endif
     }
 }
 
@@ -67,6 +131,10 @@ std::string_view CallbackFeatureExtractor::name() const {
 }
 
 FeatureResult CallbackFeatureExtractor::extract(const AudioData& audio) const {
+    if (!m_extract_fn) {
+        return failed_feature_for_extractor(m_name, "Feature extractor callback is empty.");
+    }
+
     auto result = m_extract_fn(audio);
     if (result.name.empty()) {
         result.name = m_name;
@@ -81,7 +149,10 @@ void ExtractorRegistry::clear() {
 
 void ExtractorRegistry::register_extractor(std::unique_ptr<FeatureExtractor> extractor) {
     if (!extractor) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Feature extractor cannot be null.");
+#endif
+        return;
     }
 
     const auto extractor_name = std::string{extractor->name()};
@@ -169,13 +240,20 @@ std::vector<std::string> Analyzer::registered_extractors() const {
 }
 
 AnalysisResult Analyzer::analyze(const AudioData& audio) const {
+    return analyze(audio, AnalyzeSettings{});
+}
+
+AnalysisResult Analyzer::analyze(const AudioData& audio, const AnalyzeSettings& settings) const {
+    const auto settings_scope = ActiveAnalyzeSettingsScope{settings};
+    auto features = m_registry.extract_all(audio);
+
     return AnalysisResult{
         .sample_rate_hz = audio.sample_rate_hz,
         .channel_count = audio.channel_count,
         .sample_count = audio.samples.size(),
         .frame_count = audio.frame_count(),
         .duration_seconds = audio.duration_seconds(),
-        .features = m_registry.extract_all(audio),
+        .features = std::move(features),
     };
 }
 
@@ -202,17 +280,27 @@ Analyzer create_default_analyzer() {
 }
 
 std::vector<std::string> builtin_feature_names() {
-    return {
+    auto names = std::vector<std::string>{
         std::string{feature_names::rms},
         std::string{feature_names::rms_variance},
         std::string{feature_names::zcr},
+    };
+
+#if AFEX_ENABLE_SPECTRAL_EXTRACTORS
+    names.insert(
+        names.end(),
+        {
         std::string{feature_names::pitch},
         std::string{feature_names::pitch_confidence},
         std::string{feature_names::spectral_centroid},
         std::string{feature_names::spectral_flux},
         std::string{feature_names::onset_density},
         std::string{feature_names::voice_activity_ratio},
-    };
+        }
+    );
+#endif
+
+    return names;
 }
 
 AnalysisResult analyze_file(std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs) {
@@ -221,11 +309,46 @@ AnalysisResult analyze_file(std::string_view audio_file_path, const std::vector<
 
 AnalysisResult analyze_file(const AnalysisConfig& config) {
     if (config.audio_file_path.empty()) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Analysis config must include an audio_file path or receive one from the caller.");
+#endif
+        return AnalysisResult{
+            .features = {
+                failed_feature_for_extractor("analysis", "Analysis config must include an audio_file path or receive one from the caller."),
+            },
+        };
     }
 
     return analyze_file(config.audio_file_path, config.extractors);
 }
+
+AnalysisResult analyze(const AudioData& audio, const std::vector<ExtractorConfig>& extractor_configs, const AnalyzeSettings& settings) {
+    return create_analyzer(extractor_configs).analyze(audio, settings);
+}
+
+#if AFEX_EMBEDDED
+LoadedAudioData load_audio_file(std::string_view audio_file_path) {
+    static_cast<void>(audio_file_path);
+    return {};
+}
+
+AnalysisConfig load_analysis_config_yaml(std::string_view config_file_path) {
+    static_cast<void>(config_file_path);
+    return {};
+}
+
+Status load_audio_file(std::string_view audio_file_path, LoadedAudioData& audio) {
+    static_cast<void>(audio_file_path);
+    audio = {};
+    return Status{.error = AfexError::UnsupportedAudioFile, .message = "Audio file loading is not part of the embedded afex core."};
+}
+
+Status load_analysis_config_yaml(std::string_view config_file_path, AnalysisConfig& config) {
+    static_cast<void>(config_file_path);
+    config = {};
+    return Status{.error = AfexError::ParseFailed, .message = "YAML config loading is not part of the embedded afex core."};
+}
+#endif
 
 std::string placeholder_method() {
     return "afex placeholder method executed";

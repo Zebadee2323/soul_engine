@@ -29,7 +29,9 @@ BuiltinFeatureExtractor::BuiltinFeatureExtractor(ExtractorConfig config) :
     m_config                 (std::move(config))
 {
     if (m_config.name.empty()) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Extractor config name cannot be empty.");
+#endif
     }
 }
 
@@ -38,6 +40,10 @@ std::string_view BuiltinFeatureExtractor::name() const {
 }
 
 FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
+    if (m_config.name.empty()) {
+        return failed_feature(m_config.name, "Extractor config name cannot be empty.");
+    }
+
     if (m_config.name == feature_names::rms) {
         return extract_rms(audio, m_config.parameters);
     }
@@ -50,6 +56,7 @@ FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
         return extract_zcr(audio, m_config.parameters);
     }
 
+#if AFEX_ENABLE_SPECTRAL_EXTRACTORS
     if (m_config.name == feature_names::pitch) {
         return extract_pitch(audio, m_config.parameters);
     }
@@ -73,8 +80,9 @@ FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
     if (m_config.name == feature_names::voice_activity_ratio) {
         return extract_voice_activity_ratio(audio, m_config.parameters);
     }
+#endif
 
-    throw std::invalid_argument("Unknown afex extractor: " + m_config.name);
+    return failed_feature(m_config.name, "Unknown afex extractor: " + m_config.name);
 }
 
 }
@@ -83,7 +91,10 @@ std::unique_ptr<FeatureExtractor> create_builtin_extractor(const ExtractorConfig
     const auto names = builtin_feature_names();
     const auto found = std::find(names.begin(), names.end(), config.name);
     if (found == names.end()) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("Unknown afex extractor: " + config.name);
+#endif
+        return nullptr;
     }
 
     return std::make_unique<BuiltinFeatureExtractor>(config);

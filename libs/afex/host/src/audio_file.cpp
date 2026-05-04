@@ -172,4 +172,21 @@ LoadedAudioData load_audio_file(std::string_view audio_file_path) {
     };
 }
 
+Status load_audio_file(std::string_view audio_file_path, LoadedAudioData& audio) {
+#if AFEX_ENABLE_EXCEPTIONS
+    try {
+        audio = load_audio_file(audio_file_path);
+        return {};
+    } catch (const std::invalid_argument& error) {
+        return Status{.error = AfexError::InvalidArgument, .message = error.what()};
+    } catch (const std::runtime_error& error) {
+        return Status{.error = AfexError::UnsupportedAudioFile, .message = error.what()};
+    }
+#else
+    static_cast<void>(audio_file_path);
+    static_cast<void>(audio);
+    return Status{.error = AfexError::UnsupportedAudioFile, .message = "Host audio file loading requires AFEX_ENABLE_EXCEPTIONS in this build."};
+#endif
+}
+
 }

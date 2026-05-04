@@ -30,7 +30,10 @@ double parameter_or(const ExtractorParameters& parameters, std::string_view name
 std::size_t positive_size_parameter(const ExtractorParameters& parameters, std::string_view name, std::size_t fallback) {
     const auto value = parameter_or(parameters, name, static_cast<double>(fallback));
     if (value < 1.0) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument(std::string{name} + " must be greater than or equal to 1.");
+#endif
+        return fallback;
     }
 
     return static_cast<std::size_t>(std::llround(value));
@@ -39,7 +42,10 @@ std::size_t positive_size_parameter(const ExtractorParameters& parameters, std::
 double non_negative_parameter(const ExtractorParameters& parameters, std::string_view name, double fallback) {
     const auto value = parameter_or(parameters, name, fallback);
     if (value < 0.0) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument(std::string{name} + " must be greater than or equal to 0.");
+#endif
+        return fallback;
     }
 
     return value;
@@ -89,7 +95,13 @@ FrameSettings frame_settings(const AudioData& audio, const ExtractorParameters& 
         hop = samples_from_ms(audio.sample_rate_hz, hop_ms, hop);
     }
 
+    size = std::min(size, current_analyze_settings().max_frame_size);
+    hop = std::min(hop, size);
     return FrameSettings{.size = size, .hop = hop};
+}
+
+bool frame_settings_valid(const FrameSettings& settings) {
+    return settings.size >= 1 && settings.hop >= 1;
 }
 
 double frame_rms(const std::vector<double>& mono, std::size_t offset, std::size_t size) {
@@ -211,10 +223,16 @@ PitchSummary estimate_pitch(const AudioData& audio, const ExtractorParameters& p
     const auto max_frequency_hz = parameter_or(parameters, "max_frequency_hz", 500.0);
     const auto confidence_threshold = parameter_or(parameters, "confidence_threshold", 0.3);
     if (min_frequency_hz <= 0.0 || max_frequency_hz <= 0.0 || min_frequency_hz >= max_frequency_hz) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("pitch min_frequency_hz and max_frequency_hz must be positive and increasing.");
+#endif
+        return PitchSummary{.note = "pitch min_frequency_hz and max_frequency_hz must be positive and increasing."};
     }
     if (confidence_threshold < 0.0 || confidence_threshold > 1.0) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("pitch confidence_threshold must be between 0 and 1.");
+#endif
+        return PitchSummary{.note = "pitch confidence_threshold must be between 0 and 1."};
     }
 
     auto min_lag = static_cast<std::size_t>(std::floor(static_cast<double>(audio.sample_rate_hz) / max_frequency_hz));
@@ -290,7 +308,12 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorP
     }
 
     const auto settings = frame_settings(audio, parameters, 2048, 512);
+    if (!frame_settings_valid(settings)) {
+        return failed_feature(feature_names::spectral_centroid, "Frame settings are invalid.");
+    }
     auto values = std::vector<double>{};
+    auto sum_centroid = 0.0;
+    auto centroid_count = std::size_t{0};
     for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
         const auto magnitudes = magnitude_spectrum(mono, offset, settings.size);
         auto weighted_sum = 0.0;
@@ -300,10 +323,16 @@ FeatureResult extract_spectral_centroid(const AudioData& audio, const ExtractorP
             weighted_sum += frequency_hz * magnitudes[bin];
             magnitude_sum += magnitudes[bin];
         }
-        values.push_back(magnitude_sum == 0.0 ? 0.0 : weighted_sum / magnitude_sum);
+        const auto centroid = magnitude_sum == 0.0 ? 0.0 : weighted_sum / magnitude_sum;
+        sum_centroid += centroid;
+        ++centroid_count;
+        if (current_analyze_settings().keep_intermediate_values) {
+            values.push_back(centroid);
+        }
     }
 
-    return FeatureResult{.name = std::string{feature_names::spectral_centroid}, .value = mean_or_zero(values), .values = std::move(values), .unit = "Hz", .note = "Mean spectral centroid across Hann-windowed frames."};
+    const auto value = centroid_count == 0 ? 0.0 : sum_centroid / static_cast<double>(centroid_count);
+    return FeatureResult{.name = std::string{feature_names::spectral_centroid}, .value = value, .values = std::move(values), .unit = "Hz", .note = "Mean spectral centroid across Hann-windowed frames."};
 }
 
 FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParameters& parameters) {
@@ -313,7 +342,12 @@ FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParam
     }
 
     const auto settings = frame_settings(audio, parameters, 2048, 512);
+    if (!frame_settings_valid(settings)) {
+        return failed_feature(feature_names::spectral_flux, "Frame settings are invalid.");
+    }
     auto values = std::vector<double>{};
+    auto sum_flux = 0.0;
+    auto flux_count = std::size_t{0};
     auto previous = std::vector<double>{};
     for (const auto offset : frame_offsets(mono.size(), settings.size, settings.hop)) {
         auto current = magnitude_spectrum(mono, offset, settings.size);
@@ -332,12 +366,18 @@ FeatureResult extract_spectral_flux(const AudioData& audio, const ExtractorParam
                     flux += increase * increase;
                 }
             }
-            values.push_back(std::sqrt(flux));
+            const auto flux_value = std::sqrt(flux);
+            sum_flux += flux_value;
+            ++flux_count;
+            if (current_analyze_settings().keep_intermediate_values) {
+                values.push_back(flux_value);
+            }
         }
         previous = std::move(current);
     }
 
-    return FeatureResult{.name = std::string{feature_names::spectral_flux}, .value = mean_or_zero(values), .values = std::move(values), .unit = "ratio", .note = "Mean positive spectral change between normalized frames."};
+    const auto value = flux_count == 0 ? 0.0 : sum_flux / static_cast<double>(flux_count);
+    return FeatureResult{.name = std::string{feature_names::spectral_flux}, .value = value, .values = std::move(values), .unit = "ratio", .note = "Mean positive spectral change between normalized frames."};
 }
 
 FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParameters& parameters) {
@@ -347,6 +387,9 @@ FeatureResult extract_onset_density(const AudioData& audio, const ExtractorParam
     }
 
     const auto settings = frame_settings(audio, parameters, 1024, 512);
+    if (!frame_settings_valid(settings)) {
+        return failed_feature(feature_names::onset_density, "Frame settings are invalid.");
+    }
     const auto rms_threshold = non_negative_parameter(parameters, "rms_threshold", 0.02);
     const auto rise_threshold = non_negative_parameter(parameters, "rise_threshold", 1.5);
     auto onsets = std::size_t{0};
@@ -372,11 +415,17 @@ FeatureResult extract_voice_activity_ratio(const AudioData& audio, const Extract
     }
 
     const auto settings = frame_settings(audio, parameters, 1024, 512);
+    if (!frame_settings_valid(settings)) {
+        return failed_feature(feature_names::voice_activity_ratio, "Frame settings are invalid.");
+    }
     const auto rms_threshold = non_negative_parameter(parameters, "rms_threshold", 0.02);
     const auto zcr_min = non_negative_parameter(parameters, "zcr_min", 0.01);
     const auto zcr_max = non_negative_parameter(parameters, "zcr_max", 0.35);
     if (zcr_min > zcr_max) {
+#if AFEX_ENABLE_EXCEPTIONS
         throw std::invalid_argument("voice_activity_ratio zcr_min must be less than or equal to zcr_max.");
+#endif
+        return failed_feature(feature_names::voice_activity_ratio, "voice_activity_ratio zcr_min must be less than or equal to zcr_max.");
     }
 
     auto voiced = std::size_t{0};

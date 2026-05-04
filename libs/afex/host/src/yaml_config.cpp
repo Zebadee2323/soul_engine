@@ -168,4 +168,21 @@ AnalysisConfig load_analysis_config_yaml(std::string_view config_file_path) {
     return config;
 }
 
+Status load_analysis_config_yaml(std::string_view config_file_path, AnalysisConfig& config) {
+#if AFEX_ENABLE_EXCEPTIONS
+    try {
+        config = load_analysis_config_yaml(config_file_path);
+        return {};
+    } catch (const std::invalid_argument& error) {
+        return Status{.error = AfexError::InvalidArgument, .message = error.what()};
+    } catch (const std::runtime_error& error) {
+        return Status{.error = AfexError::ParseFailed, .message = error.what()};
+    }
+#else
+    static_cast<void>(config_file_path);
+    static_cast<void>(config);
+    return Status{.error = AfexError::ParseFailed, .message = "Host YAML loading requires AFEX_ENABLE_EXCEPTIONS in this build."};
+#endif
+}
+
 }

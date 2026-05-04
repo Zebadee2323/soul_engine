@@ -5,7 +5,7 @@ add_library(pyafex_native MODULE
 )
 
 target_compile_features(pyafex_native PRIVATE cxx_std_20)
-target_link_libraries(pyafex_native PRIVATE afex Python3::Module)
+target_link_libraries(pyafex_native PRIVATE afex_host Python3::Module)
 
 set(pyafex_package_dir "${CMAKE_BINARY_DIR}/python/lib/pyafex/pyafex")
 
