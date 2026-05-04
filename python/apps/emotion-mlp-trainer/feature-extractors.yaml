@@ -13,15 +13,15 @@ extractors:
   - name: pitch
     parameters:
       min_frequency_hz: 60
-      max_frequency_hz: 450
+      max_frequency_hz: 500
       confidence_threshold: 0.25
       normalize: 1
       normalization_min_hz: 60
-      normalization_max_hz: 450
+      normalization_max_hz: 500
   - name: pitch_confidence
     parameters:
       min_frequency_hz: 60
-      max_frequency_hz: 450
+      max_frequency_hz: 500
       confidence_threshold: 0.25
   - name: spectral_centroid
     parameters:
@@ -29,7 +29,7 @@ extractors:
       hop_size_ms: 10
       normalize: 1
       normalization_min_hz: 250
-      normalization_max_hz: 4000
+      normalization_max_hz: 6000
   - name: spectral_flux
     parameters:
       frame_size_ms: 25
@@ -42,7 +42,7 @@ extractors:
       rise_threshold: 1.3
       normalize: 1
       normalization_min_onsets_per_second: 0
-      normalization_max_onsets_per_second: 12
+      normalization_max_onsets_per_second: 16
   - name: voice_activity_ratio
     parameters:
       frame_size_ms: 25

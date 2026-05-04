@@ -1,2 +1,3 @@
 source .venv/bin/activate
-python3 ./dataset-transform.py --max-wavs-per-emotion 10 --output-dir ./train_data/
+rm -rf ./train_data/
+python3 ./dataset-transform.py --max-wavs-per-emotion 3000 --output-dir ./train_data/

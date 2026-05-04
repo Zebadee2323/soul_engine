@@ -13,7 +13,9 @@ Example:
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
+import os
 import random
 import sys
 from collections import defaultdict
@@ -47,6 +49,15 @@ LABEL_ALIASES = {
 class Example:
     wav_path: Path
     label: str
+
+
+@dataclass(frozen=True)
+class FeatureExtractionResult:
+    index: int
+    example: Example
+    feature_names: list[str] | None = None
+    feature_values: list[float] | None = None
+    error: str | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,6 +107,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-failures",
         action="store_true",
         help="Skip WAV files that fail feature extraction instead of stopping.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=os.cpu_count() or 1,
+        help=(
+            "Number of worker processes to use for CPU-bound audio feature extraction. "
+            "Defaults to the available CPU count."
+        ),
     )
     return parser
 
@@ -171,6 +191,108 @@ def extract_feature_vector(pyafex: Any, config_path: Path, wav_path: Path) -> tu
     return feature_names, feature_values
 
 
+def extract_example_features(
+    index: int,
+    example: Example,
+    config_path: Path,
+) -> FeatureExtractionResult:
+    """Extract features for one example in a worker process."""
+    try:
+        import pyafex
+
+        feature_names, feature_values = extract_feature_vector(
+            pyafex=pyafex,
+            config_path=config_path,
+            wav_path=example.wav_path,
+        )
+    except Exception as error:  # noqa: BLE001 - caller decides whether failures are fatal.
+        return FeatureExtractionResult(index=index, example=example, error=str(error))
+
+    return FeatureExtractionResult(
+        index=index,
+        example=example,
+        feature_names=feature_names,
+        feature_values=feature_values,
+    )
+
+
+def extract_feature_rows(
+    examples: list[Example],
+    config_path: Path,
+    workers: int,
+    skip_failures: bool,
+) -> tuple[list[list[float]], list[list[float]], list[str], list[Example], list[dict[str, str]]]:
+    """Extract features concurrently while preserving the input example order."""
+    if workers < 1:
+        raise ValueError("--workers must be at least 1.")
+
+    worker_count = min(workers, len(examples))
+    if worker_count == 1:
+        print("Using 1 worker process for feature extraction.", flush=True)
+        results = []
+        for index, example in enumerate(examples):
+            results.append(extract_example_features(index, example, config_path))
+            completed = index + 1
+            if completed % 25 == 0 or completed == len(examples):
+                print(f"Processed {completed}/{len(examples)} WAV files", flush=True)
+    else:
+        print(f"Using {worker_count} worker processes for feature extraction.", flush=True)
+        results_by_index: dict[int, FeatureExtractionResult] = {}
+        completed = 0
+        with concurrent.futures.ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(extract_example_features, index, example, config_path)
+                for index, example in enumerate(examples)
+            ]
+            for future in concurrent.futures.as_completed(futures):
+                result = future.result()
+                results_by_index[result.index] = result
+                completed += 1
+
+                if result.error is not None and not skip_failures:
+                    for pending in futures:
+                        pending.cancel()
+                    raise RuntimeError(f"{result.example.wav_path}: {result.error}")
+
+                if completed % 25 == 0 or completed == len(examples):
+                    print(f"Processed {completed}/{len(examples)} WAV files", flush=True)
+
+        results = [results_by_index[index] for index in range(len(examples))]
+
+    expected_feature_names: list[str] | None = None
+    processed_examples: list[Example] = []
+    feature_rows: list[list[float]] = []
+    label_rows: list[list[float]] = []
+    skipped: list[dict[str, str]] = []
+
+    for result in results:
+        if result.error is not None:
+            if not skip_failures:
+                raise RuntimeError(f"{result.example.wav_path}: {result.error}")
+            skipped.append({"wav_path": str(result.example.wav_path), "error": result.error})
+            continue
+
+        if result.feature_names is None or result.feature_values is None:
+            raise RuntimeError(f"{result.example.wav_path}: feature extraction returned no data.")
+
+        if expected_feature_names is None:
+            expected_feature_names = result.feature_names
+        elif result.feature_names != expected_feature_names:
+            raise RuntimeError(
+                f"Feature order changed for {result.example.wav_path}: "
+                f"expected {expected_feature_names}, got {result.feature_names}"
+            )
+
+        processed_examples.append(result.example)
+        feature_rows.append(result.feature_values)
+        label_rows.append(one_hot(result.example.label))
+
+    if expected_feature_names is None or not processed_examples:
+        raise RuntimeError("No training examples were created.")
+
+    return feature_rows, label_rows, expected_feature_names, processed_examples, skipped
+
+
 def one_hot(label: str) -> list[float]:
     return [1.0 if candidate == label else 0.0 for candidate in LABELS]
 
@@ -218,11 +340,12 @@ def save_training_data(
 def transform_dataset(args: argparse.Namespace) -> None:
     if args.max_wavs_per_emotion is not None and args.max_wavs_per_emotion < 1:
         raise ValueError("--max-wavs-per-emotion must be at least 1 when provided.")
+    if args.workers < 1:
+        raise ValueError("--workers must be at least 1.")
     if not args.feature_config.is_file():
         raise FileNotFoundError(f"Feature config not found: {args.feature_config}")
 
     import kagglehub
-    import pyafex
 
     print(f"Downloading Kaggle dataset: {args.dataset_ref}", flush=True)
     dataset_root = Path(kagglehub.dataset_download(args.dataset_ref))
@@ -236,40 +359,18 @@ def transform_dataset(args: argparse.Namespace) -> None:
     )
     print(f"Extracting features from {len(examples)} WAV files...", flush=True)
 
-    expected_feature_names: list[str] | None = None
-    processed_examples: list[Example] = []
-    feature_rows: list[list[float]] = []
-    label_rows: list[list[float]] = []
-    skipped: list[dict[str, str]] = []
-
-    for index, example in enumerate(examples, start=1):
-        try:
-            feature_names, feature_values = extract_feature_vector(
-                pyafex=pyafex,
-                config_path=args.feature_config,
-                wav_path=example.wav_path,
-            )
-            if expected_feature_names is None:
-                expected_feature_names = feature_names
-            elif feature_names != expected_feature_names:
-                raise RuntimeError(
-                    f"Feature order changed for {example.wav_path}: "
-                    f"expected {expected_feature_names}, got {feature_names}"
-                )
-
-            processed_examples.append(example)
-            feature_rows.append(feature_values)
-            label_rows.append(one_hot(example.label))
-        except Exception as error:  # noqa: BLE001 - CLI converts extractor failures to readable output.
-            if not args.skip_failures:
-                raise
-            skipped.append({"wav_path": str(example.wav_path), "error": str(error)})
-
-        if index % 25 == 0 or index == len(examples):
-            print(f"Processed {index}/{len(examples)} WAV files", flush=True)
-
-    if expected_feature_names is None or not processed_examples:
-        raise RuntimeError("No training examples were created.")
+    (
+        feature_rows,
+        label_rows,
+        expected_feature_names,
+        processed_examples,
+        skipped,
+    ) = extract_feature_rows(
+        examples=examples,
+        config_path=args.feature_config.resolve(),
+        workers=args.workers,
+        skip_failures=args.skip_failures,
+    )
 
     save_training_data(
         output_dir=args.output_dir,
