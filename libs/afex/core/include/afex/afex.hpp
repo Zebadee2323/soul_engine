@@ -95,7 +95,7 @@ struct AnalysisConfig
 
 struct AnalyzeSettings
 {
-    bool                                keep_intermediate_values     = true;
+    bool                                keep_intermediate_values    = false;
     std::size_t                         max_frame_size              = 2048;
 };
 

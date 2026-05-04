@@ -111,11 +111,15 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
 
     const auto frame_size = positive_size_parameter(parameters, "frame_size", 1024);
     const auto hop_size = positive_size_parameter(parameters, "hop_size", 512);
+    const auto keep_intermediate_values = current_analyze_settings().keep_intermediate_values;
     auto frame_rms_values = std::vector<double>{};
-    if (current_analyze_settings().keep_intermediate_values) {
+    if (keep_intermediate_values) {
         frame_rms_values.reserve((audio.samples.size() + hop_size - 1) / hop_size);
     }
 
+    auto frame_rms_mean = 0.0;
+    auto frame_rms_squared_delta_sum = 0.0;
+    auto frame_rms_count = std::size_t{0};
     for (auto offset = std::size_t{0}; offset < audio.samples.size(); offset += hop_size) {
         const auto end = std::min(offset + frame_size, audio.samples.size());
         auto square_sum = 0.0;
@@ -125,20 +129,19 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
         }
 
         const auto frame_rms = std::sqrt(square_sum / static_cast<double>(end - offset));
-        frame_rms_values.push_back(frame_rms);
+        ++frame_rms_count;
+        const auto delta = frame_rms - frame_rms_mean;
+        frame_rms_mean += delta / static_cast<double>(frame_rms_count);
+        frame_rms_squared_delta_sum += delta * (frame_rms - frame_rms_mean);
+        if (keep_intermediate_values) {
+            frame_rms_values.push_back(frame_rms);
+        }
         if (end == audio.samples.size()) {
             break;
         }
     }
 
-    const auto mean = std::accumulate(frame_rms_values.begin(), frame_rms_values.end(), 0.0) / static_cast<double>(frame_rms_values.size());
-    const auto variance = std::accumulate(
-        frame_rms_values.begin(), frame_rms_values.end(), 0.0,
-        [mean](double sum, double value) {
-            const auto delta = value - mean;
-            return sum + delta * delta;
-        }
-    ) / static_cast<double>(frame_rms_values.size());
+    const auto variance = frame_rms_squared_delta_sum / static_cast<double>(frame_rms_count);
 
     auto note = std::string{"Variance of frame RMS values."};
     if (noise_floor > 0.0) {
