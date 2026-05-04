@@ -235,6 +235,14 @@ std::size_t samples_from_ms(std::uint32_t sample_rate_hz, double milliseconds, s
     return std::max<std::size_t>(1, static_cast<std::size_t>(std::llround(static_cast<double>(sample_rate_hz) * milliseconds / 1000.0)));
 }
 
+std::size_t samples_from_seconds(std::uint32_t sample_rate_hz, double seconds) {
+    if (sample_rate_hz == 0 || seconds <= 0.0) {
+        return 0;
+    }
+
+    return std::max<std::size_t>(1, static_cast<std::size_t>(std::llround(static_cast<double>(sample_rate_hz) * seconds)));
+}
+
 FrameSettings frame_settings(const AudioData& audio, const FrameParameterSettings& parameters) {
     auto size = parameters.size;
     auto hop = parameters.hop;
@@ -247,7 +255,16 @@ FrameSettings frame_settings(const AudioData& audio, const FrameParameterSetting
         hop = samples_from_ms(audio.sample_rate_hz, parameters.hop_ms, hop);
     }
 
-    size = std::min(size, current_analyze_settings().max_frame_size);
+    const auto& analyze_settings = current_analyze_settings();
+    if (analyze_settings.max_frame_size != 0) {
+        size = std::min(size, analyze_settings.max_frame_size);
+    } else if (analyze_settings.max_frame_length != 0.0) {
+        const auto max_frame_size = samples_from_seconds(audio.sample_rate_hz, analyze_settings.max_frame_length);
+        if (max_frame_size != 0) {
+            size = std::min(size, max_frame_size);
+        }
+    }
+
     hop = std::min(hop, size);
     return FrameSettings{.size = size, .hop = hop};
 }

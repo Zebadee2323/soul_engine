@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 from emotion_mlp_common import (
+    MAX_FRAME_LENGTH_SECONDS,
     MODEL_FILENAME,
     TRAINING_METADATA_FILENAME,
     extract_feature_vector,
@@ -77,6 +78,13 @@ def load_predictor(args: argparse.Namespace):
     return pyafex, model, metadata
 
 
+def log_progress(args: argparse.Namespace, message: str) -> None:
+    if args.json:
+        return
+
+    print(message, file=sys.stderr, flush=True)
+
+
 def predict_wav(
     *,
     pyafex,
@@ -85,7 +93,13 @@ def predict_wav(
     feature_config: Path,
     wav_path: Path,
 ) -> dict[str, object]:
-    feature_names, feature_values = extract_feature_vector(pyafex, feature_config, wav_path)
+    feature_names, feature_values = extract_feature_vector(
+        pyafex,
+        feature_config,
+        wav_path,
+        trim_silence=True,
+        max_frame_length=MAX_FRAME_LENGTH_SECONDS,
+    )
     validate_feature_order(feature_names, list(metadata["feature_names"]))
 
     features = np.asarray([feature_values], dtype=np.float32)
@@ -107,24 +121,30 @@ def predict(args: argparse.Namespace) -> list[dict[str, object]]:
         raise ValueError("--top-k must be at least 1.")
 
     wav_paths = find_wav_paths(args.wav_path, args.recursive)
+    log_progress(args, f"Found {len(wav_paths)} WAV file{'s' if len(wav_paths) != 1 else ''} to classify.")
+    log_progress(args, f"Loading feature config, model, and metadata from: {args.model_dir}")
     pyafex, model, metadata = load_predictor(args)
+    log_progress(args, "Predictor loaded. Starting predictions...")
 
     results: list[dict[str, object]] = []
-    for wav_path in wav_paths:
+    for index, wav_path in enumerate(wav_paths, start=1):
+        log_progress(args, f"[{index}/{len(wav_paths)}] Analyzing: {wav_path}")
         try:
-            results.append(
-                predict_wav(
-                    pyafex=pyafex,
-                    model=model,
-                    metadata=metadata,
-                    feature_config=args.feature_config,
-                    wav_path=wav_path,
-                )
+            result = predict_wav(
+                pyafex=pyafex,
+                model=model,
+                metadata=metadata,
+                feature_config=args.feature_config,
+                wav_path=wav_path,
             )
+            results.append(result)
+            log_progress(args, f"[{index}/{len(wav_paths)}] Done: {result['prediction']} ({float(result['confidence']):.1%})")
         except Exception as error:  # noqa: BLE001 - batch mode can optionally keep going.
+            log_progress(args, f"[{index}/{len(wav_paths)}] Error: {error}")
             if not args.skip_errors:
                 raise
             results.append({"wav_path": str(wav_path), "error": str(error)})
+    log_progress(args, "Finished all prediction attempts.")
     return results
 
 

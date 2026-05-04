@@ -30,6 +30,9 @@ AnalysisConfig                          load_analysis_config_yaml   (std::string
 Status                                  load_audio_file             (std::string_view audio_file_path, LoadedAudioData& audio);
 Status                                  load_analysis_config_yaml   (std::string_view config_file_path, AnalysisConfig& config);
 AnalysisResult                          analyze_file                (std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs);
+AnalysisResult                          analyze_file                (std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs,
+                                                                       const AnalyzeSettings& settings);
 AnalysisResult                          analyze_file                (const AnalysisConfig& config);
+AnalysisResult                          analyze_file                (const AnalysisConfig& config, const AnalyzeSettings& settings);
 
 }

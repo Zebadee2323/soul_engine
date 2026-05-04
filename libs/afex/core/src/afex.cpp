@@ -4,6 +4,7 @@
 #include "extractor_helpers.hpp"
 // --------------------------------------------------------------------------------------------------------------------
 #include <algorithm>
+#include <cmath>
 #include <stdexcept>
 #include <utility>
 
@@ -62,6 +63,81 @@ FeatureResult complete_feature_for_extractor(std::string_view name, double value
         .unit = std::string{unit},
         .note = std::string{note},
 #endif
+    };
+}
+
+bool frame_exceeds_silence_threshold(const AudioData& audio, std::size_t frame_index) {
+    constexpr auto silence_threshold = 1.0e-4f;
+
+    const auto first_sample = frame_index * audio.channel_count;
+    for (auto channel = std::size_t{0}; channel < audio.channel_count; ++channel) {
+        if (std::abs(audio.samples[first_sample + channel]) > silence_threshold) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+AudioData trim_silence(const AudioData& audio) {
+    if (audio.channel_count == 0 || audio.empty()) {
+        return audio;
+    }
+
+    const auto frame_count = audio.frame_count();
+    auto first_audible_frame = std::size_t{0};
+    while (first_audible_frame < frame_count && !frame_exceeds_silence_threshold(audio, first_audible_frame)) {
+        ++first_audible_frame;
+    }
+
+    if (first_audible_frame == frame_count) {
+        return AudioData{
+            .samples = audio.samples.subspan(0, 0),
+            .sample_rate_hz = audio.sample_rate_hz,
+            .channel_count = audio.channel_count,
+        };
+    }
+
+    auto one_past_last_audible_frame = frame_count;
+    while (one_past_last_audible_frame > first_audible_frame
+           && !frame_exceeds_silence_threshold(audio, one_past_last_audible_frame - 1)) {
+        --one_past_last_audible_frame;
+    }
+
+    const auto first_sample = first_audible_frame * audio.channel_count;
+    const auto sample_count = (one_past_last_audible_frame - first_audible_frame) * audio.channel_count;
+    return AudioData{
+        .samples = audio.samples.subspan(first_sample, sample_count),
+        .sample_rate_hz = audio.sample_rate_hz,
+        .channel_count = audio.channel_count,
+    };
+}
+
+bool has_max_frame_size_limit(const AnalyzeSettings& settings) {
+    return settings.max_frame_size != 0;
+}
+
+bool has_max_frame_length_limit(const AnalyzeSettings& settings) {
+    return settings.max_frame_length != 0.0;
+}
+
+bool frame_limit_settings_valid(const AnalyzeSettings& settings) {
+    if (!std::isfinite(settings.max_frame_length) || settings.max_frame_length < 0.0) {
+        return false;
+    }
+
+    return !(has_max_frame_size_limit(settings) && has_max_frame_length_limit(settings));
+}
+
+AnalysisResult failed_analysis_result(std::string_view note) {
+    return AnalysisResult{
+        .features = {
+            FeatureResult{
+                .name = "analysis",
+                .status = FeatureStatus::Failed,
+                .note = std::string{note},
+            },
+        },
     };
 }
 
@@ -265,17 +341,26 @@ AnalysisResult Analyzer::analyze(const AudioData& audio) const {
 }
 
 AnalysisResult Analyzer::analyze(const AudioData& audio, const AnalyzeSettings& settings) const {
+    if (!frame_limit_settings_valid(settings)) {
+#if AFEX_ENABLE_EXCEPTIONS
+        throw std::invalid_argument("AnalyzeSettings must use either max_frame_size or max_frame_length, not both, and max_frame_length must be non-negative.");
+#else
+        return failed_analysis_result("AnalyzeSettings must use either max_frame_size or max_frame_length, not both, and max_frame_length must be non-negative.");
+#endif
+    }
+
     const auto settings_scope = ActiveAnalyzeSettingsScope{settings};
-    auto workspace = AnalysisWorkspace{audio};
+    const auto analysis_audio = settings.trim_silence ? trim_silence(audio) : audio;
+    auto workspace = AnalysisWorkspace{analysis_audio};
     const auto workspace_scope = ActiveAnalysisWorkspaceScope{workspace};
-    auto features = m_registry.extract_all(audio);
+    auto features = m_registry.extract_all(analysis_audio);
 
     return AnalysisResult{
-        .sample_rate_hz = audio.sample_rate_hz,
-        .channel_count = audio.channel_count,
-        .sample_count = audio.samples.size(),
-        .frame_count = audio.frame_count(),
-        .duration_seconds = audio.duration_seconds(),
+        .sample_rate_hz = analysis_audio.sample_rate_hz,
+        .channel_count = analysis_audio.channel_count,
+        .sample_count = analysis_audio.samples.size(),
+        .frame_count = analysis_audio.frame_count(),
+        .duration_seconds = analysis_audio.duration_seconds(),
         .features = std::move(features),
     };
 }

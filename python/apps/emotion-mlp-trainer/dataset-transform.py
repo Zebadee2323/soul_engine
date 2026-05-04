@@ -23,6 +23,7 @@ from typing import Any
 
 
 LABELS = ("Anger", "Disgust", "Fear", "Happy", "Neutral", "Sad")
+MAX_FRAME_LENGTH_SECONDS = 2.0
 
 
 @dataclass(frozen=True)
@@ -166,7 +167,12 @@ def collect_examples(source_data_dir: Path) -> list[Example]:
 
 def extract_feature_vector(pyafex: Any, config_path: Path, wav_path: Path) -> tuple[list[str], list[float]]:
     """Run pyafex and return scalar feature names and values in pyafex result order."""
-    analysis = pyafex.analyze_audio_file_with_yaml(str(config_path), str(wav_path))
+    analysis = pyafex.analyze_audio_file_with_yaml(
+        str(config_path),
+        str(wav_path),
+        trim_silence=True,
+        max_frame_length=MAX_FRAME_LENGTH_SECONDS,
+    )
 
     feature_names: list[str] = []
     feature_values: list[float] = []
@@ -323,6 +329,8 @@ def save_training_data(
         "feature_count": int(features.shape[1]) if features.ndim == 2 else 0,
         "label_order": list(LABELS),
         "feature_names": feature_names,
+        "trim_silence": True,
+        "max_frame_length": MAX_FRAME_LENGTH_SECONDS,
         "source_data_dir": str(source_data_dir),
         "tf_dataset": str(dataset_dir),
         "features_npy": str(output_dir / "features.npy"),

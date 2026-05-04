@@ -81,8 +81,10 @@ struct ExtractorConfig
 
 struct AnalyzeSettings
 {
-    bool                                include_feature_values       = false;
-    std::size_t                         max_frame_size              = 2048;
+    bool                                include_feature_values      = false;
+    bool                                trim_silence                = false;
+    std::size_t                         max_frame_size              = 0;
+    double                              max_frame_length            = 0.0;
 };
 
 enum class FeatureStatus

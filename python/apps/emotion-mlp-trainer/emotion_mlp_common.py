@@ -12,11 +12,24 @@ import numpy as np
 LABELS = ("Anger", "Disgust", "Fear", "Happy", "Neutral", "Sad")
 MODEL_FILENAME = "emotion_mlp.keras"
 TRAINING_METADATA_FILENAME = "training_metadata.json"
+MAX_FRAME_LENGTH_SECONDS = 2.0
 
 
-def extract_feature_vector(pyafex: Any, config_path: Path, wav_path: Path) -> tuple[list[str], list[float]]:
+def extract_feature_vector(
+    pyafex: Any,
+    config_path: Path,
+    wav_path: Path,
+    *,
+    trim_silence: bool = False,
+    max_frame_length: float = 0.0,
+) -> tuple[list[str], list[float]]:
     """Run pyafex and return scalar feature names and values in pyafex result order."""
-    analysis = pyafex.analyze_audio_file_with_yaml(str(config_path), str(wav_path))
+    analysis = pyafex.analyze_audio_file_with_yaml(
+        str(config_path),
+        str(wav_path),
+        trim_silence=trim_silence,
+        max_frame_length=max_frame_length,
+    )
 
     feature_names: list[str] = []
     feature_values: list[float] = []

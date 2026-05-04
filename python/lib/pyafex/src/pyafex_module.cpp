@@ -127,6 +127,28 @@ bool parse_extractor_configs(PyObject* object, std::vector<afex::ExtractorConfig
     return true;
 }
 
+bool parse_analyze_settings(int trim_silence, Py_ssize_t max_frame_size, double max_frame_length, afex::AnalyzeSettings& settings) {
+    if (max_frame_size < 0) {
+        PyErr_SetString(PyExc_ValueError, "max_frame_size must be greater than or equal to 0.");
+        return false;
+    }
+    if (max_frame_length < 0.0) {
+        PyErr_SetString(PyExc_ValueError, "max_frame_length must be greater than or equal to 0.");
+        return false;
+    }
+    if (max_frame_size != 0 && max_frame_length != 0.0) {
+        PyErr_SetString(PyExc_ValueError, "max_frame_size and max_frame_length are mutually exclusive.");
+        return false;
+    }
+
+    settings = afex::AnalyzeSettings{
+        .trim_silence = trim_silence != 0,
+        .max_frame_size = static_cast<std::size_t>(max_frame_size),
+        .max_frame_length = max_frame_length,
+    };
+    return true;
+}
+
 PyObject* feature_result_to_python(const afex::FeatureResult& feature) {
     PyObject* dict = PyDict_New();
     if (dict == nullptr) {
@@ -195,9 +217,13 @@ PyObject* analysis_result_to_python(const afex::AnalysisResult& result) {
 PyObject* analyze_audio_file(PyObject*, PyObject* args, PyObject* kwargs) {
     const char* audio_file_path = nullptr;
     PyObject* extractors = Py_None;
-    static char const* keywords[] = {"audio_file_path", "extractors", nullptr};
+    int trim_silence = 0;
+    auto max_frame_size = Py_ssize_t{0};
+    auto max_frame_length = 0.0;
+    static char const* keywords[] = {"audio_file_path", "extractors", "trim_silence", "max_frame_size", "max_frame_length", nullptr};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", const_cast<char**>(keywords), &audio_file_path, &extractors)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|Opnd", const_cast<char**>(keywords), &audio_file_path, &extractors, &trim_silence,
+                                     &max_frame_size, &max_frame_length)) {
         return nullptr;
     }
 
@@ -207,7 +233,12 @@ PyObject* analyze_audio_file(PyObject*, PyObject* args, PyObject* kwargs) {
             return nullptr;
         }
 
-        return analysis_result_to_python(afex::analyze_file(audio_file_path, configs));
+        auto settings = afex::AnalyzeSettings{};
+        if (!parse_analyze_settings(trim_silence, max_frame_size, max_frame_length, settings)) {
+            return nullptr;
+        }
+
+        return analysis_result_to_python(afex::analyze_file(audio_file_path, configs, settings));
     } catch (...) {
         set_python_error_from_exception();
         return nullptr;
@@ -217,9 +248,13 @@ PyObject* analyze_audio_file(PyObject*, PyObject* args, PyObject* kwargs) {
 PyObject* analyze_audio_file_with_yaml(PyObject*, PyObject* args, PyObject* kwargs) {
     const char* config_file_path = nullptr;
     const char* audio_file_path = nullptr;
-    static char const* keywords[] = {"config_file_path", "audio_file_path", nullptr};
+    int trim_silence = 0;
+    auto max_frame_size = Py_ssize_t{0};
+    auto max_frame_length = 0.0;
+    static char const* keywords[] = {"config_file_path", "audio_file_path", "trim_silence", "max_frame_size", "max_frame_length", nullptr};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|z", const_cast<char**>(keywords), &config_file_path, &audio_file_path)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|zpnd", const_cast<char**>(keywords), &config_file_path, &audio_file_path, &trim_silence,
+                                     &max_frame_size, &max_frame_length)) {
         return nullptr;
     }
 
@@ -229,7 +264,12 @@ PyObject* analyze_audio_file_with_yaml(PyObject*, PyObject* args, PyObject* kwar
             config.audio_file_path = audio_file_path;
         }
 
-        return analysis_result_to_python(afex::analyze_file(config));
+        auto settings = afex::AnalyzeSettings{};
+        if (!parse_analyze_settings(trim_silence, max_frame_size, max_frame_length, settings)) {
+            return nullptr;
+        }
+
+        return analysis_result_to_python(afex::analyze_file(config, settings));
     } catch (...) {
         set_python_error_from_exception();
         return nullptr;
