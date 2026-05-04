@@ -1,0 +1,52 @@
+extractors:
+  - name: rms
+    parameters:
+      noise_floor: 0.003
+  - name: rms_variance
+    parameters:
+      noise_floor: 0.003
+      frame_size: 1024
+      hop_size: 512
+  - name: zcr
+    parameters:
+      threshold: 0.005
+  - name: pitch
+    parameters:
+      min_frequency_hz: 60
+      max_frequency_hz: 450
+      confidence_threshold: 0.25
+      normalize: 1
+      normalization_min_hz: 60
+      normalization_max_hz: 450
+  - name: pitch_confidence
+    parameters:
+      min_frequency_hz: 60
+      max_frequency_hz: 450
+      confidence_threshold: 0.25
+  - name: spectral_centroid
+    parameters:
+      frame_size_ms: 25
+      hop_size_ms: 10
+      normalize: 1
+      normalization_min_hz: 250
+      normalization_max_hz: 4000
+  - name: spectral_flux
+    parameters:
+      frame_size_ms: 25
+      hop_size_ms: 10
+  - name: onset_density
+    parameters:
+      frame_size_ms: 25
+      hop_size_ms: 10
+      rms_threshold: 0.015
+      rise_threshold: 1.3
+      normalize: 1
+      normalization_min_onsets_per_second: 0
+      normalization_max_onsets_per_second: 12
+  - name: voice_activity_ratio
+    parameters:
+      frame_size_ms: 25
+      hop_size_ms: 10
+      rms_threshold: 0.015
+      zcr_min: 0.02
+      zcr_max: 0.30
