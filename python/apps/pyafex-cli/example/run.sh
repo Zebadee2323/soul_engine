@@ -7,8 +7,7 @@ repo_root="$(cd "${script_dir}/../../../.." && pwd)"
 cli="${PYAFEX_CLI:-}"
 if [[ -z "${cli}" ]]; then
     for candidate in \
-        "${repo_root}/build/python/apps/pyafex-cli/pyafex-cli" \
-        "${repo_root}/build/codex-debug/python/apps/pyafex-cli/pyafex-cli"; do
+        "${repo_root}/build/python/apps/pyafex-cli/pyafex-cli"; do
         if [[ -x "${candidate}" ]]; then
             cli="${candidate}"
             break

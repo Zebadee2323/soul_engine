@@ -1,8 +1,13 @@
 set(afex_core_sources
   src/afex.cpp
   src/builtin_extractors.cpp
+  src/extractor_helpers.cpp
+  src/onset_density_extractor.cpp
+  src/pitch_extractor.cpp
   src/rms_extractor.cpp
-  src/spectral_voice_extractors.cpp
+  src/spectral_centroid_extractor.cpp
+  src/spectral_flux_extractor.cpp
+  src/voice_activity_ratio_extractor.cpp
   src/zcr_extractor.cpp
 )
 

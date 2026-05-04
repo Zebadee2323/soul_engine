@@ -1,4 +1,4 @@
-#include "extractors.hpp"
+#include "rms_extractor.hpp"
 // --------------------------------------------------------------------------------------------------------------------
 #include <algorithm>
 #include <cmath>
