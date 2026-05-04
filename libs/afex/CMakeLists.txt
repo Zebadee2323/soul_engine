@@ -1,6 +1,9 @@
 add_library(afex
     src/afex.cpp
+    src/audio_file.cpp
+    src/builtin_extractors.cpp
     src/rms_extractor.cpp
+    src/yaml_config.cpp
     src/zcr_extractor.cpp
 )
 

@@ -1,0 +1,7 @@
+extractors:
+  - name: rms
+    parameters:
+      noise_floor: 0.001
+  - name: zcr
+    parameters:
+      threshold: 0.01

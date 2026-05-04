@@ -29,6 +29,14 @@ double AudioData::duration_seconds() const {
     return static_cast<double>(frame_count()) / static_cast<double>(sample_rate_hz);
 }
 
+AudioData LoadedAudioData::view() const {
+    return AudioData{
+        .samples = samples,
+        .sample_rate_hz = sample_rate_hz,
+        .channel_count = channel_count,
+    };
+}
+
 const FeatureResult* AnalysisResult::find_feature(std::string_view name) const {
     const auto found = std::find_if(features.begin(), features.end(), [name](const FeatureResult& feature) {
         return feature.name == name;
@@ -65,6 +73,10 @@ FeatureResult CallbackFeatureExtractor::extract(const AudioData& audio) const {
     }
 
     return result;
+}
+
+void ExtractorRegistry::clear() {
+    m_extractors.clear();
 }
 
 void ExtractorRegistry::register_extractor(std::unique_ptr<FeatureExtractor> extractor) {
@@ -131,10 +143,24 @@ void Analyzer::register_extractor(std::string name, FeatureExtractorFn extract_f
     m_registry.register_extractor(std::move(name), std::move(extract_fn));
 }
 
+void Analyzer::register_builtin_extractor(const ExtractorConfig& config) {
+    register_extractor(create_builtin_extractor(config));
+}
+
 void Analyzer::register_default_extractors() {
-    register_extractor(std::string{feature_names::rms}, extract_rms);
-    register_extractor(std::string{feature_names::rms_variance}, extract_rms_variance);
-    register_extractor(std::string{feature_names::zcr}, extract_zcr);
+    configure_extractors({
+        ExtractorConfig{.name = std::string{feature_names::rms}},
+        ExtractorConfig{.name = std::string{feature_names::rms_variance}},
+        ExtractorConfig{.name = std::string{feature_names::zcr}},
+    });
+}
+
+void Analyzer::configure_extractors(const std::vector<ExtractorConfig>& configs) {
+    m_registry.clear();
+
+    for (const auto& config : configs) {
+        register_builtin_extractor(config);
+    }
 }
 
 std::vector<std::string> Analyzer::registered_extractors() const {
@@ -152,10 +178,38 @@ AnalysisResult Analyzer::analyze(const AudioData& audio) const {
     };
 }
 
+AnalysisResult Analyzer::analyze_file(std::string_view audio_file_path) const {
+    const auto audio = load_audio_file(audio_file_path);
+    return analyze(audio.view());
+}
+
+Analyzer create_analyzer(const std::vector<ExtractorConfig>& extractor_configs) {
+    auto analyzer = Analyzer{};
+    if (extractor_configs.empty()) {
+        analyzer.register_default_extractors();
+        return analyzer;
+    }
+
+    analyzer.configure_extractors(extractor_configs);
+    return analyzer;
+}
+
 Analyzer create_default_analyzer() {
     auto analyzer = Analyzer{};
     analyzer.register_default_extractors();
     return analyzer;
+}
+
+AnalysisResult analyze_file(std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs) {
+    return create_analyzer(extractor_configs).analyze_file(audio_file_path);
+}
+
+AnalysisResult analyze_file(const AnalysisConfig& config) {
+    if (config.audio_file_path.empty()) {
+        throw std::invalid_argument("Analysis config must include an audio_file path or receive one from the caller.");
+    }
+
+    return analyze_file(config.audio_file_path, config.extractors);
 }
 
 std::string placeholder_method() {

@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace afex
@@ -28,6 +29,8 @@ inline constexpr std::string_view    voice_activity_ratio        = "voice_activi
 
 }
 
+using ExtractorParameters = std::unordered_map<std::string, double>;
+
 struct AudioData
 {
     std::span<const float>               samples;
@@ -37,6 +40,27 @@ struct AudioData
     bool                                 empty                       () const;
     std::size_t                          frame_count                 () const;
     double                               duration_seconds            () const;
+};
+
+struct LoadedAudioData
+{
+    std::vector<float>                   samples;
+    std::uint32_t                        sample_rate_hz              = 0;
+    std::uint32_t                        channel_count               = 1;
+
+    AudioData                            view                        () const;
+};
+
+struct ExtractorConfig
+{
+    std::string                          name;
+    ExtractorParameters                  parameters;
+};
+
+struct AnalysisConfig
+{
+    std::string                          audio_file_path;
+    std::vector<ExtractorConfig>         extractors;
 };
 
 enum class FeatureStatus
@@ -98,6 +122,7 @@ class ExtractorRegistry
 {
 
 public:
+    void                                 clear                       ();
     void                                 register_extractor          (std::unique_ptr<FeatureExtractor> extractor);
     void                                 register_extractor          (std::string name, FeatureExtractorFn extract_fn);
     bool                                 unregister_extractor        (std::string_view name);
@@ -118,16 +143,24 @@ public:
 
     void                                 register_extractor          (std::unique_ptr<FeatureExtractor> extractor);
     void                                 register_extractor          (std::string name, FeatureExtractorFn extract_fn);
+    void                                 register_builtin_extractor  (const ExtractorConfig& config);
     void                                 register_default_extractors ();
+    void                                 configure_extractors        (const std::vector<ExtractorConfig>& configs);
     std::vector<std::string>             registered_extractors       () const;
     AnalysisResult                       analyze                     (const AudioData& audio) const;
+    AnalysisResult                       analyze_file                (std::string_view audio_file_path) const;
 
 private:
     ExtractorRegistry                    m_registry;
 
 };
 
+LoadedAudioData                      load_audio_file             (std::string_view audio_file_path);
+AnalysisConfig                       load_analysis_config_yaml   (std::string_view config_file_path);
+Analyzer                             create_analyzer             (const std::vector<ExtractorConfig>& extractor_configs);
 Analyzer                             create_default_analyzer     ();
+AnalysisResult                       analyze_file                (std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs);
+AnalysisResult                       analyze_file                (const AnalysisConfig& config);
 std::string                          placeholder_method          ();
 
 }
