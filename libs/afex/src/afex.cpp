@@ -148,11 +148,12 @@ void Analyzer::register_builtin_extractor(const ExtractorConfig& config) {
 }
 
 void Analyzer::register_default_extractors() {
-    configure_extractors({
-        ExtractorConfig{.name = std::string{feature_names::rms}},
-        ExtractorConfig{.name = std::string{feature_names::rms_variance}},
-        ExtractorConfig{.name = std::string{feature_names::zcr}},
-    });
+    auto configs = std::vector<ExtractorConfig>{};
+    for (const auto& name : builtin_feature_names()) {
+        configs.push_back(ExtractorConfig{.name = name});
+    }
+
+    configure_extractors(configs);
 }
 
 void Analyzer::configure_extractors(const std::vector<ExtractorConfig>& configs) {
@@ -198,6 +199,20 @@ Analyzer create_default_analyzer() {
     auto analyzer = Analyzer{};
     analyzer.register_default_extractors();
     return analyzer;
+}
+
+std::vector<std::string> builtin_feature_names() {
+    return {
+        std::string{feature_names::rms},
+        std::string{feature_names::rms_variance},
+        std::string{feature_names::zcr},
+        std::string{feature_names::pitch},
+        std::string{feature_names::pitch_confidence},
+        std::string{feature_names::spectral_centroid},
+        std::string{feature_names::spectral_flux},
+        std::string{feature_names::onset_density},
+        std::string{feature_names::voice_activity_ratio},
+    };
 }
 
 AnalysisResult analyze_file(std::string_view audio_file_path, const std::vector<ExtractorConfig>& extractor_configs) {

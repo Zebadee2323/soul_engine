@@ -2,6 +2,42 @@ extractors:
   - name: rms
     parameters:
       noise_floor: 0.001
+  - name: rms_variance
+    parameters:
+      noise_floor: 0.001
+      frame_size: 1024
+      hop_size: 512
   - name: zcr
     parameters:
       threshold: 0.01
+  - name: pitch
+    parameters:
+      min_frequency_hz: 50
+      max_frequency_hz: 500
+      confidence_threshold: 0.3
+  - name: pitch_confidence
+    parameters:
+      min_frequency_hz: 50
+      max_frequency_hz: 500
+      confidence_threshold: 0.3
+  - name: spectral_centroid
+    parameters:
+      frame_size: 2048
+      hop_size: 512
+  - name: spectral_flux
+    parameters:
+      frame_size: 2048
+      hop_size: 512
+  - name: onset_density
+    parameters:
+      frame_size: 1024
+      hop_size: 512
+      rms_threshold: 0.02
+      rise_threshold: 1.5
+  - name: voice_activity_ratio
+    parameters:
+      frame_size: 1024
+      hop_size: 512
+      rms_threshold: 0.02
+      zcr_min: 0.01
+      zcr_max: 0.35

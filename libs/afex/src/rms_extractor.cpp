@@ -1,9 +1,12 @@
 #include "extractors.hpp"
 // --------------------------------------------------------------------------------------------------------------------
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <numeric>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace afex
 {
@@ -18,6 +21,24 @@ double parameter_or(const ExtractorParameters& parameters, std::string_view name
     }
 
     return found->second;
+}
+
+std::size_t positive_size_parameter(const ExtractorParameters& parameters, std::string_view name, std::size_t fallback) {
+    const auto value = parameter_or(parameters, name, static_cast<double>(fallback));
+    if (value < 1.0) {
+        throw std::invalid_argument(std::string{name} + " must be greater than or equal to 1.");
+    }
+
+    return static_cast<std::size_t>(std::llround(value));
+}
+
+double sample_or_silence(float sample, double noise_floor) {
+    const auto value = static_cast<double>(sample);
+    if (std::abs(value) < noise_floor) {
+        return 0.0;
+    }
+
+    return value;
 }
 
 }
@@ -42,7 +63,7 @@ FeatureResult extract_rms(const AudioData& audio, const ExtractorParameters& par
     const auto square_sum = std::accumulate(
         audio.samples.begin(), audio.samples.end(), 0.0,
         [noise_floor](double sum, float sample) {
-            const auto value = std::abs(static_cast<double>(sample)) < noise_floor ? 0.0 : static_cast<double>(sample);
+            const auto value = sample_or_silence(sample, noise_floor);
             return sum + value * value;
         }
     );
@@ -79,25 +100,34 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
         throw std::invalid_argument("rms_variance.noise_floor must be greater than or equal to 0.");
     }
 
-    const auto mean_square = std::accumulate(
-        audio.samples.begin(), audio.samples.end(), 0.0,
-        [noise_floor](double sum, float sample) {
-            const auto value = std::abs(static_cast<double>(sample)) < noise_floor ? 0.0 : static_cast<double>(sample);
-            return sum + value * value;
-        }
-    ) / static_cast<double>(audio.samples.size());
+    const auto frame_size = positive_size_parameter(parameters, "frame_size", 1024);
+    const auto hop_size = positive_size_parameter(parameters, "hop_size", 512);
+    auto frame_rms_values = std::vector<double>{};
 
+    for (auto offset = std::size_t{0}; offset < audio.samples.size(); offset += hop_size) {
+        const auto end = std::min(offset + frame_size, audio.samples.size());
+        auto square_sum = 0.0;
+        for (auto i = offset; i < end; ++i) {
+            const auto value = sample_or_silence(audio.samples[i], noise_floor);
+            square_sum += value * value;
+        }
+
+        frame_rms_values.push_back(std::sqrt(square_sum / static_cast<double>(end - offset)));
+        if (end == audio.samples.size()) {
+            break;
+        }
+    }
+
+    const auto mean = std::accumulate(frame_rms_values.begin(), frame_rms_values.end(), 0.0) / static_cast<double>(frame_rms_values.size());
     const auto variance = std::accumulate(
-        audio.samples.begin(), audio.samples.end(), 0.0,
-        [mean_square, noise_floor](double sum, float sample) {
-            const auto value = std::abs(static_cast<double>(sample)) < noise_floor ? 0.0 : static_cast<double>(sample);
-            const auto square = value * value;
-            const auto delta = square - mean_square;
+        frame_rms_values.begin(), frame_rms_values.end(), 0.0,
+        [mean](double sum, double value) {
+            const auto delta = value - mean;
             return sum + delta * delta;
         }
-    ) / static_cast<double>(audio.samples.size());
+    ) / static_cast<double>(frame_rms_values.size());
 
-    auto note = std::string{"Scaffold metric over raw sample energy; frame-based RMS variance can replace this extractor later."};
+    auto note = std::string{"Variance of frame RMS values."};
     if (noise_floor > 0.0) {
         note += " Samples below noise_floor were treated as silence.";
     }
@@ -106,8 +136,8 @@ FeatureResult extract_rms_variance(const AudioData& audio, const ExtractorParame
         .name = std::string{feature_names::rms_variance},
         .status = FeatureStatus::Complete,
         .value = variance,
-        .values = {},
-        .unit = "amplitude^4",
+        .values = std::move(frame_rms_values),
+        .unit = "amplitude^2",
         .note = note,
     };
 }

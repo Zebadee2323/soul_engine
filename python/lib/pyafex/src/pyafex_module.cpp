@@ -14,6 +14,25 @@ PyObject* placeholder_method(PyObject*, PyObject*) {
     return PyUnicode_FromString(result.c_str());
 }
 
+PyObject* builtin_feature_names(PyObject*, PyObject*) {
+    const auto names = afex::builtin_feature_names();
+    PyObject* list = PyList_New(static_cast<Py_ssize_t>(names.size()));
+    if (list == nullptr) {
+        return nullptr;
+    }
+
+    for (auto i = std::size_t{0}; i < names.size(); ++i) {
+        PyObject* name = PyUnicode_FromString(names[i].c_str());
+        if (name == nullptr) {
+            Py_DECREF(list);
+            return nullptr;
+        }
+        PyList_SET_ITEM(list, static_cast<Py_ssize_t>(i), name);
+    }
+
+    return list;
+}
+
 bool set_python_error_from_exception() {
     try {
         throw;
@@ -219,6 +238,7 @@ PyObject* analyze_audio_file_with_yaml(PyObject*, PyObject* args, PyObject* kwar
 
 PyMethodDef pyafex_methods[] = {
     {"placeholder_method", placeholder_method, METH_NOARGS, "Execute the afex placeholder method."},
+    {"builtin_feature_names", builtin_feature_names, METH_NOARGS, "Return the names of all built-in afex extractors."},
     {"analyze_audio_file", reinterpret_cast<PyCFunction>(analyze_audio_file), METH_VARARGS | METH_KEYWORDS, "Analyze an audio file with selected extractors."},
     {"analyze_audio_file_with_yaml", reinterpret_cast<PyCFunction>(analyze_audio_file_with_yaml), METH_VARARGS | METH_KEYWORDS, "Analyze an audio file using an afex YAML extractor config."},
     {nullptr, nullptr, 0, nullptr},

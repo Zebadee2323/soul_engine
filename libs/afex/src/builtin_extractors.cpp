@@ -1,5 +1,6 @@
 #include "extractors.hpp"
 // --------------------------------------------------------------------------------------------------------------------
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -49,13 +50,39 @@ FeatureResult BuiltinFeatureExtractor::extract(const AudioData& audio) const {
         return extract_zcr(audio, m_config.parameters);
     }
 
+    if (m_config.name == feature_names::pitch) {
+        return extract_pitch(audio, m_config.parameters);
+    }
+
+    if (m_config.name == feature_names::pitch_confidence) {
+        return extract_pitch_confidence(audio, m_config.parameters);
+    }
+
+    if (m_config.name == feature_names::spectral_centroid) {
+        return extract_spectral_centroid(audio, m_config.parameters);
+    }
+
+    if (m_config.name == feature_names::spectral_flux) {
+        return extract_spectral_flux(audio, m_config.parameters);
+    }
+
+    if (m_config.name == feature_names::onset_density) {
+        return extract_onset_density(audio, m_config.parameters);
+    }
+
+    if (m_config.name == feature_names::voice_activity_ratio) {
+        return extract_voice_activity_ratio(audio, m_config.parameters);
+    }
+
     throw std::invalid_argument("Unknown afex extractor: " + m_config.name);
 }
 
 }
 
 std::unique_ptr<FeatureExtractor> create_builtin_extractor(const ExtractorConfig& config) {
-    if (config.name != feature_names::rms && config.name != feature_names::rms_variance && config.name != feature_names::zcr) {
+    const auto names = builtin_feature_names();
+    const auto found = std::find(names.begin(), names.end(), config.name);
+    if (found == names.end()) {
         throw std::invalid_argument("Unknown afex extractor: " + config.name);
     }
 
